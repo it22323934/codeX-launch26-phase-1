@@ -32,6 +32,25 @@ function CodeBlock({ color, children }: { color: string; children: React.ReactNo
   )
 }
 
+function BinaryBlock({ children }: { children: string }) {
+  return (
+    <div style={{
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '11px', color: COLORS.TEXT_DIM,
+      lineHeight: '1.8', letterSpacing: '0.08em',
+      wordBreak: 'break-all',
+      padding: '6px 10px',
+      background: 'rgba(58,74,99,0.12)',
+      border: '1px solid rgba(58,74,99,0.35)',
+      borderRadius: '3px',
+      maxHeight: '60px', overflowY: 'auto',
+      marginBottom: '10px',
+    }}>
+      {children}
+    </div>
+  )
+}
+
 // ─── Math section ─────────────────────────────────────────────────────────────
 
 interface MRow { label: string; sub?: string; value: string; total?: boolean }
@@ -392,50 +411,77 @@ function HopCard({ entry, index, hop, open, onToggle }: {
             {/* ── CODEX tab ── */}
             {tab === 'codex' && (
               <>
+                {/* Step 1 — incoming laser stream (relay + destination only) */}
+                {entry.received_binary != null && (
+                  <>
+                    <Label>← Incoming void stream (base-2)</Label>
+                    <BinaryBlock>{entry.received_binary as string}</BinaryBlock>
+                  </>
+                )}
+
+                {/* Step 2 — decoded into this planet's codex */}
                 {entry.received_as != null && (
                   <>
-                    <Label>Received as base-{entry.codex}</Label>
+                    <Label>
+                      {entry.received_binary != null
+                        ? `Decoded as base-${entry.codex}`
+                        : `Source encoding — base-${entry.codex}`}
+                    </Label>
                     <CodeBlock color={COLORS.CYAN}>
                       [{(entry.received_as as string[]).join(', ')}]
                     </CodeBlock>
                   </>
                 )}
 
-                {entry.ascii != null && (
+                {/* Step 2b — ASCII decimal byte values (base-N → integer) */}
+                {entry.received_as != null && (
                   <>
-                    <Label>Decoded text</Label>
-                    <CodeBlock color={COLORS.TEXT_HI}>
-                      "{entry.ascii}"
+                    <Label>ASCII decimal values</Label>
+                    <CodeBlock color="#B07A1E">
+                      [{(entry.received_as as string[]).map((v: string) => parseInt(v, entry.codex)).join(', ')}]
                     </CodeBlock>
                   </>
                 )}
 
+                {/* Step 3 — internal ASCII routing */}
+                {entry.ascii != null && (
+                  <>
+                    <Label>
+                      {entry.sent_as != null ? 'Internal ASCII routing' : 'Delivered text'}
+                    </Label>
+                    <CodeBlock color={COLORS.TEXT_HI}>
+                      &quot;{entry.ascii}&quot;
+                    </CodeBlock>
+                  </>
+                )}
+
+                {/* Step 4 — re-encoded for next hop (origin + relay only) */}
                 {entry.sent_as != null && (
                   <>
-                    <Label>Re-sent in the next base</Label>
+                    <Label>Encoded for next hop — base-{entry.next_codex}</Label>
                     <CodeBlock color={COLORS.MAGENTA}>
                       [{(entry.sent_as as string[]).join(', ')}]
                     </CodeBlock>
                   </>
                 )}
 
+                {/* Step 5 — outgoing laser stream (origin + relay only) */}
                 {entry.binary_stream != null && (
                   <>
-                    <Label>Bits on the wire</Label>
-                    <div style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: '11px', color: COLORS.TEXT_DIM,
-                      lineHeight: '1.8', letterSpacing: '0.08em',
-                      wordBreak: 'break-all',
-                      padding: '6px 10px',
-                      background: 'rgba(58,74,99,0.12)',
-                      border: '1px solid rgba(58,74,99,0.35)',
-                      borderRadius: '3px',
-                      maxHeight: '60px', overflowY: 'auto',
-                    }}>
-                      {entry.binary_stream}
-                    </div>
+                    <Label>↓ Void transmission stream (base-2)</Label>
+                    <BinaryBlock>{entry.binary_stream as string}</BinaryBlock>
                   </>
+                )}
+
+                {/* Destination footer */}
+                {entry.sent_as == null && entry.binary_stream == null && (
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: '11px', color: COLORS.TEXT_DIM,
+                    letterSpacing: '0.06em', marginTop: '4px',
+                  }}>
+                    — payload delivered, no further transmission —
+                  </div>
                 )}
               </>
             )}

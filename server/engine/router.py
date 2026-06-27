@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING
 
 from engine.constants import Constants
 from engine.codex import build_translation_log
-from engine.geometry import closest_tower_pair, void_distance_km, fiber_arc_length_km
+from engine.geometry import closest_tower_pair, void_distance_km, fiber_arc_length_km, tower_segment_count
 from engine.latency import compute_path_latency
 
 if TYPE_CHECKING:
@@ -175,11 +175,12 @@ def find_route(
             _, recv_t = closest_tower_pair(prev_node, cur_node, scale)
             send_t, _ = closest_tower_pair(cur_node, nb_node, scale)
 
-            if recv_t == send_t:
+            s = tower_segment_count(cur_node, recv_t, send_t)
+            if s == 0:
                 towers_hit = 1
                 fiber_ms = 0.0
             else:
-                towers_hit = 2
+                towers_hit = s + 1
                 arc_km = fiber_arc_length_km(cur_node, recv_t, send_t)
                 fiber_ms = arc_km / (constants.fiber_speed_fraction * constants.speed_of_light_kms) * 1000.0
 

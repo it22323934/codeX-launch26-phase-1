@@ -54,37 +54,52 @@ def to_binary_stream(ascii_bytes: bytes) -> str:
 
 def build_translation_log(text: str, planets: list[dict]) -> list[dict]:
     """
-    Build per-planet codex translation stages.
+    Build per-planet codex translation stages reflecting the full transmission flow:
+      binary arrives → decode to base-N → ASCII → encode to next base → binary leaves
 
     Each entry contains:
-      planet_id    - the planet's id
-      received_as  - payload encoded in this planet's codex (list[str])
-      ascii        - the original text
-      sent_as      - payload encoded in NEXT planet's codex (list[str] | None for destination)
-      binary_stream- space-separated 8-bit groups of each byte
+      planet_id       - the planet's id
+      codex           - this planet's numerical base
+      received_binary - base-2 stream that arrived through the void (None at origin)
+      received_as     - payload decoded into this planet's codex (list[str])
+      ascii           - the human-readable text (internal ASCII routing)
+      next_codex      - the base of the next planet (None at destination)
+      sent_as         - payload re-encoded in next planet's codex (None at destination)
+      binary_stream   - base-2 stream fired into the void toward next planet (None at destination)
     """
     ascii_bytes = text.encode("ascii")
-    binary = to_binary_stream(ascii_bytes)
     log: list[dict] = []
 
     for i, planet in enumerate(planets):
         current_base = planet["codex"]
+        is_origin      = i == 0
+        is_destination = i == len(planets) - 1
+
         received_as = encode_payload(ascii_bytes, current_base)
 
-        if i < len(planets) - 1:
-            next_base = planets[i + 1]["codex"]
-            sent_as: list[str] | None = encode_payload(ascii_bytes, next_base)
+        # Incoming binary: the laser stream that arrived at this planet from the previous one.
+        # The origin generates the message locally — nothing arrives through the void.
+        received_binary: str | None = None if is_origin else to_binary_stream(ascii_bytes)
+
+        if not is_destination:
+            next_codex: int | None  = planets[i + 1]["codex"]
+            sent_as: list[str] | None = encode_payload(ascii_bytes, next_codex)
+            binary_stream: str | None = to_binary_stream(ascii_bytes)
         else:
-            sent_as = None
+            next_codex    = None
+            sent_as       = None
+            binary_stream = None  # destination receives only — nothing transmitted onward
 
         log.append(
             {
-                "planet_id": planet["id"],
-                "codex": current_base,
-                "received_as": received_as,
-                "ascii": text,
-                "sent_as": sent_as,
-                "binary_stream": binary,
+                "planet_id":       planet["id"],
+                "codex":           current_base,
+                "received_binary": received_binary,
+                "received_as":     received_as,
+                "ascii":           text,
+                "next_codex":      next_codex,
+                "sent_as":         sent_as,
+                "binary_stream":   binary_stream,
             }
         )
 
