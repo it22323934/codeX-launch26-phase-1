@@ -41,13 +41,12 @@ class Constants:
     coordinate_scale_unit_km: float
 
 
-def resolve_constants(metadata: dict | None = None) -> Constants:
-    """Merge config universe_metadata over defaults. Missing keys fall back to defaults."""
-    m = metadata or {}
+def resolve_constants(metadata: "UniverseMetadata") -> Constants:
+    """Build a Constants instance from a validated UniverseMetadata model."""
     return Constants(
-        speed_of_light_kms=m.get("speed_of_light_kms", SPEED_OF_LIGHT_KMS),
-        fiber_speed_fraction=m.get("fiber_speed_fraction", FIBER_SPEED_FRACTION),
-        tower_delay_ms=m.get("tower_processing_delay_ms", TOWER_DELAY_MS),
-        lmax_km=m.get("max_void_hop_distance_km", LMAX_KM),
-        coordinate_scale_unit_km=m.get("coordinate_scale_unit_km", COORDINATE_SCALE_UNIT_KM),
+        speed_of_light_kms=metadata.speed_of_light_kms,
+        fiber_speed_fraction=metadata.fiber_speed_fraction,
+        tower_delay_ms=metadata.tower_processing_delay_ms,
+        lmax_km=metadata.max_void_hop_distance_km,
+        coordinate_scale_unit_km=metadata.coordinate_scale_unit_km,
     )
