@@ -3,71 +3,89 @@ import { useStore } from '../store'
 import { postRoute, resetUniverse } from '../api'
 import { COLORS, ANIM } from '../constants/visual'
 
-const label: React.CSSProperties = {
+const fieldLabel: React.CSSProperties = {
   fontFamily: "'Orbitron', sans-serif",
-  fontSize:   '9px',
-  fontWeight: 700,
-  letterSpacing: '0.12em',
-  color: COLORS.TEXT_DIM,
-  display: 'block',
-  marginBottom: '4px',
+  fontSize: '7px', fontWeight: 700,
+  letterSpacing: '0.18em', color: COLORS.TEXT_DIM,
+  display: 'block', marginBottom: '5px',
 }
 
-const select: React.CSSProperties = {
-  width:           '100%',
-  background:      COLORS.VOID_BLACK,
-  color:           COLORS.TEXT_HI,
-  border:          `1px solid rgba(52, 227, 255, 0.25)`,
-  borderRadius:    '2px',
-  padding:         '5px 8px',
-  fontFamily:      "'JetBrains Mono', monospace",
-  fontSize:        '11px',
-  outline:         'none',
-  cursor:          'pointer',
-  marginBottom:    '8px',
-}
-
-const input: React.CSSProperties = {
-  ...select,
+const fieldBase: React.CSSProperties = {
   width: '100%',
+  background: 'rgba(5,6,10,0.8)',
+  color: COLORS.TEXT_HI,
+  border: `1px solid rgba(52,227,255,0.15)`,
+  borderRadius: '3px',
+  padding: '7px 10px',
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: '11px',
+  letterSpacing: '0.04em',
+  cursor: 'pointer',
+  transition: 'border-color 0.2s',
 }
 
-function ActionButton({
-  onClick,
-  color,
-  children,
-  disabled,
-}: {
-  onClick: () => void
-  color: string
-  children: React.ReactNode
-  disabled?: boolean
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <label style={fieldLabel}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function PrimaryBtn({ onClick, loading, disabled, children }: {
+  onClick: () => void; loading?: boolean; disabled?: boolean; children: React.ReactNode
 }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <button
+      onClick={onClick} disabled={disabled}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        flex: 1,
+        padding: '9px 6px',
+        background: disabled ? 'transparent' : hov ? `rgba(52,227,255,0.18)` : `rgba(52,227,255,0.08)`,
+        color: disabled ? COLORS.STEEL : COLORS.CYAN,
+        border: `1px solid ${disabled ? COLORS.STEEL : hov ? COLORS.CYAN : 'rgba(52,227,255,0.35)'}`,
+        borderRadius: '3px',
+        fontFamily: "'Orbitron', sans-serif",
+        fontSize: '8px', fontWeight: 700, letterSpacing: '0.14em',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        boxShadow: (!disabled && hov) ? `0 0 16px rgba(52,227,255,0.25)` : 'none',
+        transition: 'all 0.15s',
+        outline: 'none',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {loading ? '[ ROUTING... ]' : children}
+    </button>
+  )
+}
+
+function SecondaryBtn({ onClick, color, active, children }: {
+  onClick: () => void; color: string; active?: boolean; children: React.ReactNode
+}) {
+  const [hov, setHov] = useState(false)
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
       style={{
-        flex:        1,
-        background:  'transparent',
-        color:       disabled ? COLORS.STEEL : color,
-        border:      `1px solid ${disabled ? COLORS.STEEL : color}`,
-        borderRadius:'2px',
-        padding:     '7px 4px',
-        fontFamily:  "'Orbitron', sans-serif",
-        fontSize:    '9px',
-        fontWeight:  700,
-        letterSpacing: '0.1em',
-        cursor:      disabled ? 'not-allowed' : 'pointer',
-        transition:  'background 0.15s, box-shadow 0.15s',
-        boxShadow:   disabled ? 'none' : `0 0 8px ${color}33`,
-        outline:     'none',
-      }}
-      onMouseEnter={e => {
-        if (!disabled) (e.target as HTMLButtonElement).style.background = `${color}1A`
-      }}
-      onMouseLeave={e => {
-        (e.target as HTMLButtonElement).style.background = 'transparent'
+        flex: 1,
+        padding: '9px 6px',
+        background: (active || hov) ? `${color}18` : 'transparent',
+        color: active ? color : hov ? color : COLORS.TEXT_DIM,
+        border: `1px solid ${active ? color : hov ? `${color}88` : 'rgba(58,74,99,0.5)'}`,
+        borderRadius: '3px',
+        fontFamily: "'Orbitron', sans-serif",
+        fontSize: '8px', fontWeight: 700, letterSpacing: '0.12em',
+        cursor: 'pointer',
+        boxShadow: active ? `0 0 12px ${color}44` : 'none',
+        transition: 'all 0.15s',
+        outline: 'none',
+        whiteSpace: 'nowrap',
       }}
     >
       {children}
@@ -77,22 +95,13 @@ function ActionButton({
 
 export function Toolbar() {
   const {
-    snapshot,
-    originId,
-    destinationId,
-    payload,
-    killMode,
-    setOriginId,
-    setDestinationId,
-    setPayload,
-    setRoute,
-    setKillMode,
-    setSnapshot,
+    snapshot, originId, destinationId, payload, killMode,
+    setOriginId, setDestinationId, setPayload,
+    setRoute, setKillMode, setSnapshot,
   } = useStore()
 
   const [loading,   setLoading]   = useState(false)
   const [glitching, setGlitching] = useState(false)
-
   const nodes = snapshot?.nodes ?? []
 
   const triggerGlitch = useCallback(() => {
@@ -113,99 +122,103 @@ export function Toolbar() {
 
   const handleReset = useCallback(async () => {
     const snap = await resetUniverse()
-    if (snap) {
-      setSnapshot(snap)
-      setRoute(null)
-    }
+    if (snap) { setSnapshot(snap); setRoute(null) }
   }, [setSnapshot, setRoute])
 
-  // Auto-select first two nodes on snapshot load
   useEffect(() => {
     if (nodes.length >= 2) {
       if (!originId)      setOriginId(nodes[0].id)
-      if (!destinationId) setDestinationId(nodes[1]?.id ?? '')
+      if (!destinationId) setDestinationId(nodes[nodes.length - 1].id)
     }
-  }, [snapshot])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [snapshot]) // eslint-disable-line
+
+  const canTransmit = !!originId && !!destinationId && !loading
 
   return (
-    <div style={{ padding: '12px 14px' }}>
-      {/* Title */}
-      <div
-        className={glitching ? 'glitch' : ''}
-        style={{
-          fontFamily:    "'Orbitron', sans-serif",
-          fontSize:      '13px',
-          fontWeight:    900,
-          letterSpacing: '0.18em',
-          color:         COLORS.CYAN,
-          marginBottom:  '14px',
-          textShadow:    `0 0 10px ${COLORS.CYAN}`,
-        }}
-      >
-        [ RELIC RING PROTOCOL ]
+    <div>
+      {/* Panel header */}
+      <div className="panel-header">
+        <div className="panel-header-dot" />
+        <span className="panel-header-title">MISSION CONTROL</span>
+        <span className="panel-header-badge">TX / RX</span>
       </div>
 
-      {/* Origin */}
-      <label style={label}>ORIGIN NODE</label>
-      <select
-        style={select}
-        value={originId}
-        onChange={e => setOriginId(e.target.value)}
-      >
-        <option value="">-- SELECT --</option>
-        {nodes.map(n => (
-          <option key={n.id} value={n.id}>
-            {n.id.toUpperCase()} {!n.alive ? '[ DEAD ]' : ''}
-          </option>
-        ))}
-      </select>
+      <div style={{ padding: '12px 14px 14px' }}>
+        {/* Origin + Destination side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '2px' }}>
+          <Field label="ORIGIN">
+            <select
+              style={fieldBase}
+              value={originId}
+              onChange={e => setOriginId(e.target.value)}
+            >
+              <option value="">-- SELECT --</option>
+              {nodes.map(n => (
+                <option key={n.id} value={n.id}>
+                  {n.id.toUpperCase()}{!n.alive ? ' [DEAD]' : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="DESTINATION">
+            <select
+              style={fieldBase}
+              value={destinationId}
+              onChange={e => setDestinationId(e.target.value)}
+            >
+              <option value="">-- SELECT --</option>
+              {nodes.map(n => (
+                <option key={n.id} value={n.id}>
+                  {n.id.toUpperCase()}{!n.alive ? ' [DEAD]' : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
 
-      {/* Destination */}
-      <label style={label}>DESTINATION NODE</label>
-      <select
-        style={select}
-        value={destinationId}
-        onChange={e => setDestinationId(e.target.value)}
-      >
-        <option value="">-- SELECT --</option>
-        {nodes.map(n => (
-          <option key={n.id} value={n.id}>
-            {n.id.toUpperCase()} {!n.alive ? '[ DEAD ]' : ''}
-          </option>
-        ))}
-      </select>
+        <Field label="PAYLOAD">
+          <input
+            type="text"
+            style={{ ...fieldBase, cursor: 'text' }}
+            value={payload}
+            onChange={e => setPayload(e.target.value)}
+            placeholder="Hello world"
+            onKeyDown={e => { if (e.key === 'Enter') handleTransmit() }}
+          />
+        </Field>
 
-      {/* Payload */}
-      <label style={label}>PAYLOAD</label>
-      <input
-        type="text"
-        style={input}
-        value={payload}
-        onChange={e => setPayload(e.target.value)}
-        placeholder="Hello world"
-        onKeyDown={e => { if (e.key === 'Enter') handleTransmit() }}
-      />
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+          <PrimaryBtn onClick={handleTransmit} loading={loading} disabled={!canTransmit}>
+            [ TRANSMIT ]
+          </PrimaryBtn>
+          <SecondaryBtn onClick={handleReset} color={COLORS.STEEL}>
+            [ RESET ]
+          </SecondaryBtn>
+          <SecondaryBtn
+            onClick={() => setKillMode(!killMode)}
+            color={COLORS.MAGENTA}
+            active={killMode}
+          >
+            {killMode ? '[ KILL:ON ]' : '[ KILL:OFF ]'}
+          </SecondaryBtn>
+        </div>
 
-      {/* Action buttons */}
-      <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-        <ActionButton
-          onClick={handleTransmit}
-          color={COLORS.CYAN}
-          disabled={loading || !originId || !destinationId}
-        >
-          {loading ? '[ ROUTING... ]' : '[ TRANSMIT ]'}
-        </ActionButton>
-
-        <ActionButton onClick={handleReset} color={COLORS.STEEL}>
-          [ RESET ]
-        </ActionButton>
-
-        <ActionButton
-          onClick={() => setKillMode(!killMode)}
-          color={killMode ? COLORS.MAGENTA : COLORS.STEEL}
-        >
-          {killMode ? '[ KILL : ON ]' : '[ KILL : OFF ]'}
-        </ActionButton>
+        {/* Kill mode hint */}
+        {killMode && (
+          <div style={{
+            marginTop: '8px',
+            padding: '6px 8px',
+            background: 'rgba(255,45,155,0.07)',
+            border: '1px solid rgba(255,45,155,0.25)',
+            borderRadius: '2px',
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '8px', letterSpacing: '0.06em',
+            color: COLORS.MAGENTA,
+          }}>
+            Click a planet or link to toggle its state
+          </div>
+        )}
       </div>
     </div>
   )

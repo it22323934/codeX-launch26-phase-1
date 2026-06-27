@@ -1,133 +1,155 @@
 import { useStore } from '../store'
 import { COLORS } from '../constants/visual'
 
-const HEADING: React.CSSProperties = {
-  fontFamily:    "'Orbitron', sans-serif",
-  fontSize:      '9px',
-  fontWeight:    700,
-  letterSpacing: '0.14em',
-  color:         COLORS.TEXT_DIM,
-  marginBottom:  '10px',
-}
+const COMPONENTS: [string, keyof typeof dummyLat, string, string][] = [
+  ['VOID',       'void_ms',       COLORS.CYAN,    '//  vacuum laser propagation'],
+  ['ATMOSPHERE', 'atmosphere_ms', '#6EC6FF',      '//  ionospheric refraction loss'],
+  ['FIBER',      'fiber_ms',      '#A78BFA',      '//  subsurface crust transit'],
+  ['TOWER',      'tower_ms',      COLORS.MAGENTA, '//  processing penalty'],
+]
 
-const ROW: React.CSSProperties = {
-  display:        'flex',
-  justifyContent: 'space-between',
-  alignItems:     'baseline',
-  marginBottom:   '5px',
-}
+const dummyLat = { void_ms: 0, atmosphere_ms: 0, fiber_ms: 0, tower_ms: 0, total_ms: 0 }
 
-const KEY: React.CSSProperties = {
-  fontFamily:    "'Orbitron', sans-serif",
-  fontSize:      '8px',
-  letterSpacing: '0.1em',
-  color:         COLORS.TEXT_DIM,
-}
-
-const VAL: React.CSSProperties = {
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize:   '12px',
-  color:      COLORS.TEXT_HI,
-}
-
-const DIVIDER: React.CSSProperties = {
-  borderTop:    `1px solid rgba(52, 227, 255, 0.12)`,
-  margin:       '8px 0',
-}
-
-interface BarProps {
-  value: number
-  total: number
-  color: string
-}
-
-function LatencyBar({ value, total, color }: BarProps) {
+function Bar({ value, total, color }: { value: number; total: number; color: string }) {
   const pct = total > 0 ? Math.min((value / total) * 100, 100) : 0
   return (
-    <div
-      style={{
-        height:      '3px',
-        width:       `${pct}%`,
-        background:  color,
-        display:     'inline-block',
-        verticalAlign: 'middle',
-        minWidth:    pct > 0 ? '2px' : '0',
-      }}
-    />
+    <div style={{
+      height: '3px', background: `rgba(58,74,99,0.3)`,
+      borderRadius: '2px', overflow: 'hidden', flex: 1,
+    }}>
+      <div style={{
+        height: '100%', width: `${pct}%`,
+        background: color,
+        boxShadow: `0 0 6px ${color}88`,
+        transition: 'width 0.4s ease',
+        minWidth: pct > 0 ? '2px' : '0',
+      }} />
+    </div>
+  )
+}
+
+function StackedBar({ lat }: { lat: typeof dummyLat }) {
+  const total = lat.total_ms || 1
+  const pcts = [
+    { pct: (lat.void_ms / total) * 100,       color: COLORS.CYAN,    key: 'v' },
+    { pct: (lat.atmosphere_ms / total) * 100, color: '#6EC6FF',      key: 'a' },
+    { pct: (lat.fiber_ms / total) * 100,      color: '#A78BFA',      key: 'f' },
+    { pct: (lat.tower_ms / total) * 100,      color: COLORS.MAGENTA, key: 't' },
+  ]
+  return (
+    <div style={{
+      display: 'flex', height: '6px', width: '100%',
+      borderRadius: '3px', overflow: 'hidden',
+      background: 'rgba(58,74,99,0.2)',
+      border: '1px solid rgba(52,227,255,0.08)',
+      marginBottom: '14px',
+    }}>
+      {pcts.map(({ pct, color, key }) => (
+        <div key={key} style={{
+          width: `${pct}%`, background: color,
+          transition: 'width 0.4s ease',
+          minWidth: pct > 0 ? '2px' : '0',
+        }} />
+      ))}
+    </div>
   )
 }
 
 export function TelemetryPanel() {
-  const route = useStore(s => s.route)
-  const lat   = route?.latency
+  const lat = useStore(s => s.route?.latency)
 
   return (
-    <div style={{ padding: '12px 14px' }}>
-      <div style={HEADING}>SIGNAL TELEMETRY</div>
+    <div>
+      <div className="panel-header">
+        <div className="panel-header-dot" />
+        <span className="panel-header-title">SIGNAL TELEMETRY</span>
+        <span className="panel-header-badge">ms</span>
+      </div>
 
-      {!lat ? (
-        <div
-          style={{
+      <div style={{ padding: '12px 14px' }}>
+        {!lat ? (
+          <div style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize:   '10px',
-            color:      COLORS.TEXT_DIM,
-          }}
-        >
-          [ AWAITING TRANSMISSION ]
-        </div>
-      ) : (
-        <>
-          {/* Stacked bar */}
-          <div
-            style={{
-              display:         'flex',
-              height:          '4px',
-              width:           '100%',
-              background:      COLORS.VOID_BLACK,
-              borderRadius:    '2px',
-              overflow:        'hidden',
-              marginBottom:    '10px',
-              border:          `1px solid rgba(52, 227, 255, 0.15)`,
-            }}
-          >
-            <LatencyBar value={lat.void_ms}       total={lat.total_ms} color={COLORS.CYAN}    />
-            <LatencyBar value={lat.atmosphere_ms} total={lat.total_ms} color={COLORS.STEEL}   />
-            <LatencyBar value={lat.fiber_ms}       total={lat.total_ms} color={COLORS.TEXT_HI} />
-            <LatencyBar value={lat.tower_ms}       total={lat.total_ms} color={COLORS.MAGENTA} />
+            fontSize: '10px', color: COLORS.TEXT_DIM,
+            letterSpacing: '0.08em',
+          }}>
+            [ AWAITING TRANSMISSION ]
           </div>
+        ) : (
+          <>
+            <StackedBar lat={lat} />
 
-          {/* Readout rows */}
-          {([
-            ['VOID',       lat.void_ms,       COLORS.CYAN],
-            ['ATMOSPHERE', lat.atmosphere_ms, COLORS.STEEL],
-            ['FIBER',      lat.fiber_ms,      COLORS.TEXT_HI],
-            ['TOWER',      lat.tower_ms,      COLORS.MAGENTA],
-          ] as [string, number, string][]).map(([k, v, c]) => (
-            <div key={k} style={ROW}>
-              <span style={KEY}>{k}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <LatencyBar value={v} total={lat.total_ms} color={c} />
-                <span style={{ ...VAL, color: c }}>{v.toFixed(3)} ms</span>
+            {COMPONENTS.map(([key, field, color, comment]) => {
+              const val = lat[field as keyof typeof lat] as number
+              return (
+                <div key={key} style={{ marginBottom: '8px' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'space-between', marginBottom: '4px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                      <div style={{
+                        width: 7, height: 7, borderRadius: '50%',
+                        background: color, boxShadow: `0 0 5px ${color}`,
+                      }} />
+                      <span style={{
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontSize: '7px', fontWeight: 700,
+                        letterSpacing: '0.14em', color: COLORS.TEXT_DIM,
+                      }}>{key}</span>
+                      <span style={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: '7px', color: 'rgba(111,128,153,0.45)',
+                      }}>{comment}</span>
+                    </div>
+                    <span style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '11px', fontWeight: 700, color,
+                    }}>
+                      {val.toFixed(3)}
+                      <span style={{ fontSize: '8px', color: COLORS.TEXT_DIM, fontWeight: 400 }}> ms</span>
+                    </span>
+                  </div>
+                  <Bar value={val} total={lat.total_ms} color={color} />
+                </div>
+              )
+            })}
+
+            {/* Divider */}
+            <div style={{
+              borderTop: `1px solid rgba(52,227,255,0.1)`,
+              margin: '10px 0 8px',
+            }} />
+
+            {/* Total */}
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <span style={{
+                fontFamily: "'Orbitron', sans-serif",
+                fontSize: '8px', fontWeight: 700,
+                letterSpacing: '0.16em', color: COLORS.TEXT_HI,
+              }}>TOTAL LATENCY</span>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '18px', fontWeight: 700,
+                  color: COLORS.CYAN,
+                  textShadow: `0 0 12px ${COLORS.CYAN}88`,
+                  lineHeight: 1,
+                }}>
+                  {lat.total_ms.toFixed(2)}
+                  <span style={{ fontSize: '10px', color: COLORS.TEXT_DIM, fontWeight: 400 }}> ms</span>
+                </div>
+                <div style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '9px', color: COLORS.TEXT_DIM, marginTop: '2px',
+                }}>
+                  {(lat.total_ms / 1000).toFixed(6)} s
+                </div>
               </div>
             </div>
-          ))}
-
-          <div style={DIVIDER} />
-
-          <div style={ROW}>
-            <span style={{ ...KEY, color: COLORS.TEXT_HI, fontWeight: 700 }}>TOTAL</span>
-            <span style={{ ...VAL, color: COLORS.CYAN, fontSize: '14px' }}>
-              {lat.total_ms.toFixed(3)} ms
-            </span>
-          </div>
-          <div style={{ ...ROW, marginTop: '2px' }}>
-            <span style={KEY} />
-            <span style={{ ...VAL, color: COLORS.TEXT_DIM, fontSize: '10px' }}>
-              {(lat.total_ms / 1000).toFixed(6)} s
-            </span>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
