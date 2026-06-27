@@ -115,29 +115,13 @@ function polylineAt(pts: [number, number][], t: number): [number, number] {
   return pts[pts.length - 1]
 }
 
-// ─── Packet codex label at position t ────────────────────────────────────────
-function packetCodexAt(
-  waypoints: [number, number][],
-  hopBoundaries: number[],
-  hopCodexes: number[],
-  t: number
-): string {
-  if (!waypoints.length || !hopCodexes.length) return ''
-  let total = 0
-  const lens: number[] = []
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const d = Math.hypot(waypoints[i + 1][0] - waypoints[i][0], waypoints[i + 1][1] - waypoints[i][1])
-    lens.push(d); total += d
-  }
-  let rem = t * total, seg = 0
-  for (let i = 0; i < lens.length; i++) {
-    if (rem <= lens[i]) { seg = i; break }
-    rem -= lens[i]; seg = i + 1
-  }
-  for (let h = 0; h < hopBoundaries.length; h++) {
-    if (seg < hopBoundaries[h]) return `B-${hopCodexes[h]}`
-  }
-  return `B-${hopCodexes[hopCodexes.length - 1]}`
+// ─── Packet label lookup — one entry per segment between consecutive waypoints ─
+// "B-2"  while crossing the void (binary laser stream)
+// "B-N"  while on the planet's fiber arc (that planet's codex N)
+function packetLabelAt(segmentLabels: string[], t: number, waypoints: [number, number][]): string {
+  if (!segmentLabels.length) return ''
+  const seg = segmentOf(waypoints, t)
+  return segmentLabels[Math.min(seg, segmentLabels.length - 1)] ?? ''
 }
 
 const TRAIL_LEN = 18
@@ -168,63 +152,74 @@ export function SceneCanvas() {
   }, [route])
 
   // ── Packet waypoints ───────────────────────────────────────────────────────
+  // segmentLabels[i] is the encoding in use while the packet travels from
+  // waypoints[i] to waypoints[i+1]:
+  //   "B-2"  — void laser crossing (binary stream)
+  //   "B-N"  — inside a planet on the fiber arc (planet's codex N)
   type TowerRef = { planetId: string; towerIdx: number } | null
-  const { waypoints, hopBoundaries, hopCodexes, waypointTowers } = useMemo(() => {
+  const { waypoints, segmentLabels, waypointTowers } = useMemo(() => {
     const waypoints: [number, number][] = []
-    const hopBoundaries: number[] = []
-    const hopCodexes: number[] = []
+    const segmentLabels: string[] = []
     const waypointTowers: TowerRef[] = []
 
-    if (!route?.hop_log || !snapshot) return { waypoints, hopBoundaries, hopCodexes, waypointTowers }
+    if (!route?.hop_log || !snapshot) return { waypoints, segmentLabels, waypointTowers }
 
     const nodeMap = Object.fromEntries(snapshot.nodes.map(n => [n.id, n]))
+    const hl = route.hop_log
 
-    route.hop_log.forEach((hop, i) => {
+    hl.forEach((hop, i) => {
       const node = nodeMap[hop.planet]
       if (!node) return
       const [cx, cy] = toSVG(node.x, node.y)
       const pr = planetPx(node.radius_km)
-      const hl = route.hop_log!
+      const isLast = i === hl.length - 1
 
       if (hop.role === 'origin') {
+        // Packet starts at the planet core in the local codex, then travels to the send tower
+        waypoints.push([cx, cy])
+        waypointTowers.push(null)
+        segmentLabels.push(`B-${node.codex}`)           // local codex: core → send tower
+
         const sIdx = hop.send_tower ?? 0
         waypoints.push(towerPx(cx, cy, sIdx, node.active_towers, pr))
         waypointTowers.push({ planetId: node.id, towerIdx: sIdx })
-        const next = nodeMap[hl[i + 1]?.planet]
-        if (next) { hopBoundaries.push(waypoints.length); hopCodexes.push(next.codex) }
+        if (!isLast) segmentLabels.push('B-2')          // binary laser: send tower → void
+
       } else if (hop.role === 'relay') {
+        // Arrives at recv tower from void (already B-2), then fiber arc in local codex
         const rIdx = hop.recv_tower ?? 0, sIdx = hop.send_tower ?? 0
         const N = node.active_towers
-        // recv tower
         waypoints.push(towerPx(cx, cy, rIdx, N, pr))
         waypointTowers.push({ planetId: node.id, towerIdx: rIdx })
         if (rIdx !== sIdx) {
-          // Walk the shorter arc tower-by-tower so each circle lights up in sequence
           const cw  = (sIdx - rIdx + N) % N
           const ccw = (rIdx - sIdx + N) % N
           const clockwise = cw <= ccw
           const steps = Math.min(cw, ccw)
           for (let s = 1; s < steps; s++) {
             const tIdx = clockwise ? (rIdx + s) % N : (rIdx - s + N) % N
+            segmentLabels.push(`B-${node.codex}`)       // fiber arc inside planet
             waypoints.push(towerPx(cx, cy, tIdx, N, pr))
             waypointTowers.push({ planetId: node.id, towerIdx: tIdx })
           }
-          // send tower
+          segmentLabels.push(`B-${node.codex}`)         // last arc segment → send tower
           waypoints.push(towerPx(cx, cy, sIdx, N, pr))
           waypointTowers.push({ planetId: node.id, towerIdx: sIdx })
         }
-        const next = nodeMap[hl[i + 1]?.planet]
-        if (next) { hopBoundaries.push(waypoints.length); hopCodexes.push(next.codex) }
+        if (!isLast) segmentLabels.push('B-2')          // binary laser: send tower → void
+
       } else {
+        // Destination: arrives at recv tower, then packet travels to planet core and decodes
         const rIdx = hop.recv_tower ?? 0
         waypoints.push(towerPx(cx, cy, rIdx, node.active_towers, pr))
         waypointTowers.push({ planetId: node.id, towerIdx: rIdx })
-        hopBoundaries.push(waypoints.length)
-        hopCodexes.push(node.codex)
+        segmentLabels.push(`B-${node.codex}`)           // local codex: recv tower → core
+        waypoints.push([cx, cy])
+        waypointTowers.push(null)
       }
     })
 
-    return { waypoints, hopBoundaries, hopCodexes, waypointTowers }
+    return { waypoints, segmentLabels, waypointTowers }
   }, [route, snapshot, toSVG])
 
   // ── Packet animation (all DOM mutation — no React re-renders per frame) ────
@@ -333,8 +328,8 @@ export function SceneCanvas() {
         el.setAttribute('opacity', String(0.55 * f * f))
       })
 
-      // HUD label
-      const label = packetCodexAt(waypoints, hopBoundaries, hopCodexes, packetT.current)
+      // HUD label — B-2 in the void, B-N on the planet fiber arc
+      const label = packetLabelAt(segmentLabels, packetT.current, waypoints)
       const lw = 52, lh = 15
       if (packetLabelRef.current) {
         packetLabelRef.current.setAttribute('x', String(px + 11))
@@ -352,7 +347,7 @@ export function SceneCanvas() {
     }
     packetRaf.current = requestAnimationFrame(tick)
     return () => { if (packetRaf.current) cancelAnimationFrame(packetRaf.current) }
-  }, [route, waypoints, hopBoundaries, hopCodexes, waypointTowers])
+  }, [route, waypoints, segmentLabels, waypointTowers])
 
   // ── Kill-mode handlers ─────────────────────────────────────────────────────
   const handlePlanetClick = useCallback(async (id: string) => {
