@@ -174,7 +174,7 @@ export function EncodingPanel() {
       <div className="panel-header">
         <div className="panel-header-dot" />
         <span className="panel-header-title">CODEX TRANSLATION</span>
-        <span className="panel-header-badge">{translation.length > 0 ? `${translation.length} HOPS` : '--'}</span>
+        <span className="panel-header-badge">{translation.length > 0 ? `${translation.length - 1} HOPS` : '--'}</span>
       </div>
 
       <div style={{ padding: '10px 14px' }}>
