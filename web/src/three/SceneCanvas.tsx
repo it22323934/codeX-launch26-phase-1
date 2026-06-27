@@ -90,16 +90,21 @@ function towerPx(cx: number, cy: number, k: number, N: number, pr: number): [num
   return [cx + pr * Math.sin(a), cy - pr * Math.cos(a)]
 }
 
-// ─── Diamond tower shape (pointing radially outward) ─────────────────────────
-function diamondPts(tx: number, ty: number, angle: number, sz: number): string {
-  const [ox, oy] = [Math.sin(angle), -Math.cos(angle)]  // outward
-  const [tx2, ty2] = [Math.cos(angle), Math.sin(angle)]   // tangential
-  return [
-    [tx + ox * sz * 1.8, ty + oy * sz * 1.8],
-    [tx + tx2 * sz * 0.7, ty + ty2 * sz * 0.7],
-    [tx - ox * sz * 1.1, ty - oy * sz * 1.1],
-    [tx - tx2 * sz * 0.7, ty - ty2 * sz * 0.7],
-  ].map(([x, y]) => `${x},${y}`).join(' ')
+// ─── Current path segment index at parameter t ────────────────────────────────
+function segmentOf(pts: [number, number][], t: number): number {
+  if (pts.length <= 1) return 0
+  let total = 0
+  const lens: number[] = []
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
+    lens.push(d); total += d
+  }
+  let rem = t * total
+  for (let i = 0; i < lens.length; i++) {
+    if (rem <= lens[i]) return i
+    rem -= lens[i]
+  }
+  return lens.length - 1
 }
 
 // ─── Path interpolation ───────────────────────────────────────────────────────
@@ -157,25 +162,8 @@ export function SceneCanvas() {
   const killMode    = useStore(s => s.killMode)
   const setSnapshot = useStore(s => s.setSnapshot)
 
-  // ── Radar sweep ────────────────────────────────────────────────────────────
-  const sweepGRef  = useRef<SVGGElement>(null)
-  const sweepAngle = useRef(0)
-  const sweepRaf   = useRef<number | null>(null)
-
-  useEffect(() => {
-    let last = performance.now()
-    function tick(now: number) {
-      sweepAngle.current += ((now - last) / 1000) * 0.35
-      last = now
-      if (sweepGRef.current) {
-        const deg = (sweepAngle.current * 180 / Math.PI) % 360
-        sweepGRef.current.setAttribute('transform', `rotate(${deg}, ${CX}, ${CY})`)
-      }
-      sweepRaf.current = requestAnimationFrame(tick)
-    }
-    sweepRaf.current = requestAnimationFrame(tick)
-    return () => { if (sweepRaf.current) cancelAnimationFrame(sweepRaf.current) }
-  }, [])
+  // ── SVG root ref (for scoped querySelector on tower glow elements) ───────────
+  const svgRef = useRef<SVGSVGElement>(null)
 
   // ── Coordinate normaliser ──────────────────────────────────────────────────
   const toSVG = useMemo(() => make2DNorm(snapshot?.nodes ?? []), [snapshot])
@@ -193,12 +181,14 @@ export function SceneCanvas() {
   }, [route])
 
   // ── Packet waypoints ───────────────────────────────────────────────────────
-  const { waypoints, hopBoundaries, hopCodexes } = useMemo(() => {
+  type TowerRef = { planetId: string; towerIdx: number } | null
+  const { waypoints, hopBoundaries, hopCodexes, waypointTowers } = useMemo(() => {
     const waypoints: [number, number][] = []
     const hopBoundaries: number[] = []
     const hopCodexes: number[] = []
+    const waypointTowers: TowerRef[] = []
 
-    if (!route?.hop_log || !snapshot) return { waypoints, hopBoundaries, hopCodexes }
+    if (!route?.hop_log || !snapshot) return { waypoints, hopBoundaries, hopCodexes, waypointTowers }
 
     const nodeMap = Object.fromEntries(snapshot.nodes.map(n => [n.id, n]))
 
@@ -210,26 +200,44 @@ export function SceneCanvas() {
       const hl = route.hop_log!
 
       if (hop.role === 'origin') {
-        waypoints.push(towerPx(cx, cy, hop.send_tower ?? 0, node.active_towers, pr))
+        const sIdx = hop.send_tower ?? 0
+        waypoints.push(towerPx(cx, cy, sIdx, node.active_towers, pr))
+        waypointTowers.push({ planetId: node.id, towerIdx: sIdx })
         const next = nodeMap[hl[i + 1]?.planet]
         if (next) { hopBoundaries.push(waypoints.length); hopCodexes.push(next.codex) }
       } else if (hop.role === 'relay') {
         const rIdx = hop.recv_tower ?? 0, sIdx = hop.send_tower ?? 0
-        waypoints.push(towerPx(cx, cy, rIdx, node.active_towers, pr))
+        const N = node.active_towers
+        // recv tower
+        waypoints.push(towerPx(cx, cy, rIdx, N, pr))
+        waypointTowers.push({ planetId: node.id, towerIdx: rIdx })
         if (rIdx !== sIdx) {
-          waypoints.push(towerPx(cx, cy, ((rIdx + sIdx) / 2) % node.active_towers, node.active_towers, pr))
-          waypoints.push(towerPx(cx, cy, sIdx, node.active_towers, pr))
+          // Walk the shorter arc tower-by-tower so each circle lights up in sequence
+          const cw  = (sIdx - rIdx + N) % N
+          const ccw = (rIdx - sIdx + N) % N
+          const clockwise = cw <= ccw
+          const steps = Math.min(cw, ccw)
+          for (let s = 1; s < steps; s++) {
+            const tIdx = clockwise ? (rIdx + s) % N : (rIdx - s + N) % N
+            waypoints.push(towerPx(cx, cy, tIdx, N, pr))
+            waypointTowers.push({ planetId: node.id, towerIdx: tIdx })
+          }
+          // send tower
+          waypoints.push(towerPx(cx, cy, sIdx, N, pr))
+          waypointTowers.push({ planetId: node.id, towerIdx: sIdx })
         }
         const next = nodeMap[hl[i + 1]?.planet]
         if (next) { hopBoundaries.push(waypoints.length); hopCodexes.push(next.codex) }
       } else {
-        waypoints.push(towerPx(cx, cy, hop.recv_tower ?? 0, node.active_towers, pr))
+        const rIdx = hop.recv_tower ?? 0
+        waypoints.push(towerPx(cx, cy, rIdx, node.active_towers, pr))
+        waypointTowers.push({ planetId: node.id, towerIdx: rIdx })
         hopBoundaries.push(waypoints.length)
         hopCodexes.push(node.codex)
       }
     })
 
-    return { waypoints, hopBoundaries, hopCodexes }
+    return { waypoints, hopBoundaries, hopCodexes, waypointTowers }
   }, [route, snapshot, toSVG])
 
   // ── Packet animation (all DOM mutation — no React re-renders per frame) ────
@@ -243,10 +251,18 @@ export function SceneCanvas() {
   const packetT        = useRef(0)
   const lastFrameT     = useRef(performance.now())
   const packetRaf      = useRef<number | null>(null)
+  const packetLastSeg  = useRef(-1)
+  const activeGlows    = useRef(new Map<Element, number>())
   const SPEED          = 0.12
 
   useEffect(() => {
     if (packetRaf.current) cancelAnimationFrame(packetRaf.current)
+
+    const clearGlows = () => {
+      activeGlows.current.forEach((_, el) => el.setAttribute('opacity', '0'))
+      activeGlows.current.clear()
+      packetLastSeg.current = -1
+    }
 
     const hide = () => {
       packetDotRef.current?.setAttribute('r', '0')
@@ -256,6 +272,7 @@ export function SceneCanvas() {
       if (packetTextRef.current)  packetTextRef.current.textContent = ''
       trailPos.current = []
       trailRefs.current.forEach(el => el?.setAttribute('r', '0'))
+      clearGlows()
     }
 
     if (!route?.deliverable || waypoints.length < 2) { hide(); return }
@@ -263,13 +280,45 @@ export function SceneCanvas() {
     packetT.current = 0
     lastFrameT.current = performance.now()
     trailPos.current = []
+    clearGlows()
+
+    function fireTowerGlow(seg: number) {
+      const info = waypointTowers[seg]
+      if (!info) return
+      const el = svgRef.current?.querySelector(
+        `[data-relic-planet="${info.planetId}"][data-relic-tower="${info.towerIdx}"]`
+      )
+      if (el) {
+        el.setAttribute('opacity', '1')
+        activeGlows.current.set(el, 1.0)
+      }
+    }
 
     function tick(now: number) {
       packetT.current += ((now - lastFrameT.current) / 1000) * SPEED
       lastFrameT.current = now
-      if (packetT.current > 1) packetT.current = 0
+      if (packetT.current > 1) {
+        packetT.current = 0
+        packetLastSeg.current = -1  // reset so segment 0 fires again on loop
+      }
 
       const [px, py] = polylineAt(waypoints, packetT.current)
+
+      // Fire tower glow on segment change
+      const seg = segmentOf(waypoints, packetT.current)
+      if (seg !== packetLastSeg.current) {
+        fireTowerGlow(seg)
+        packetLastSeg.current = seg
+      }
+
+      // Fade active tower glows
+      const toDelete: Element[] = []
+      activeGlows.current.forEach((op, el) => {
+        const next = op - 0.018   // ~55 frames ≈ 0.9 s fade at 60 fps
+        if (next <= 0) { el.setAttribute('opacity', '0'); toDelete.push(el) }
+        else { el.setAttribute('opacity', String(next)); activeGlows.current.set(el, next) }
+      })
+      toDelete.forEach(el => activeGlows.current.delete(el))
 
       packetDotRef.current?.setAttribute('cx', String(px))
       packetDotRef.current?.setAttribute('cy', String(py))
@@ -316,7 +365,7 @@ export function SceneCanvas() {
     }
     packetRaf.current = requestAnimationFrame(tick)
     return () => { if (packetRaf.current) cancelAnimationFrame(packetRaf.current) }
-  }, [route, waypoints, hopBoundaries, hopCodexes])
+  }, [route, waypoints, hopBoundaries, hopCodexes, waypointTowers])
 
   // ── Kill-mode handlers ─────────────────────────────────────────────────────
   const handlePlanetClick = useCallback(async (id: string) => {
@@ -351,6 +400,7 @@ export function SceneCanvas() {
   // ─── SVG render ─────────────────────────────────────────────────────────────
   return (
     <svg
+      ref={svgRef}
       viewBox={`0 0 ${W} ${H}`}
       style={{ width: '100%', height: '100%', display: 'block', background: COLORS.VOID_BLACK }}
       cursor={killMode ? 'crosshair' : 'default'}
@@ -459,18 +509,6 @@ export function SceneCanvas() {
           >{lbl}</text>
         )
       )}
-
-      {/* ── Radar sweep (RAF rotates the group) ───────────────────────────── */}
-      <g ref={sweepGRef}>
-        <line x1={CX} y1={CY} x2={CX} y2={CY - 432}
-          stroke={COLORS.CYAN} strokeWidth="28" opacity="0.012" strokeLinecap="round" />
-        <line x1={CX} y1={CY} x2={CX} y2={CY - 432}
-          stroke={COLORS.CYAN} strokeWidth="10" opacity="0.03" strokeLinecap="round" />
-        <line x1={CX} y1={CY} x2={CX} y2={CY - 432}
-          stroke={COLORS.CYAN} strokeWidth="3"  opacity="0.09" />
-        <line x1={CX} y1={CY} x2={CX} y2={CY - 432}
-          stroke={COLORS.CYAN} strokeWidth="1"  opacity="0.27" />
-      </g>
 
       {/* ── Void links ────────────────────────────────────────────────────── */}
       {snapshot.edges.map(edge => {
@@ -582,21 +620,67 @@ export function SceneCanvas() {
               </>
             )}
 
-            {/* Tower diamonds */}
+            {/* Tower bulbs — T0 at top, clockwise */}
             {Array.from({ length: node.active_towers }, (_, k) => {
               const [tx, ty] = towerPx(cx, cy, k, node.active_towers, pr)
               const angle    = (2 * Math.PI * k) / node.active_towers
+              const outX     = Math.sin(angle)          // radially outward in SVG
+              const outY     = -Math.cos(angle)
               const isActive = route?.hop_log?.some(
                 h => h.planet === node.id && (h.recv_tower === k || h.send_tower === k)
               ) ?? false
-              const sz = isActive ? 3.8 : 2.6
+
+              // Glass bulb center sits 5px outward from the equator surface point
+              const gx = tx + outX * 5, gy = ty + outY * 5
+              // Index label sits 13px further out
+              const lx = tx + outX * 14, ly = ty + outY * 14
+
+              const bulbR    = isActive ? 4.2 : 2.8
+              const stemClr  = isActive ? color : (alive ? `${color}90` : COLORS.STEEL)
+              const glassClr = isActive ? color : (alive ? `${color}35` : `${COLORS.STEEL}50`)
+
               return (
-                <polygon key={k}
-                  points={diamondPts(tx, ty, angle, sz)}
-                  fill={isActive ? color : (alive ? `${color}80` : COLORS.STEEL)}
-                  opacity={isActive ? 1 : (alive ? 0.55 : 0.25)}
-                  filter={isActive ? 'url(#glow-sm)' : undefined}
-                />
+                <g key={k}>
+                  {/* Stem */}
+                  <line x1={tx} y1={ty} x2={gx} y2={gy}
+                    stroke={stemClr} strokeWidth={1.3}
+                    opacity={alive ? 0.65 : 0.2}
+                  />
+                  {/* Socket base */}
+                  <circle cx={tx} cy={ty} r={1.8}
+                    fill={stemClr} opacity={alive ? 0.7 : 0.2}
+                  />
+                  {/* Glass bulb */}
+                  <circle cx={gx} cy={gy} r={bulbR}
+                    fill={glassClr}
+                    stroke={isActive ? color : (alive ? `${color}66` : `${COLORS.STEEL}44`)}
+                    strokeWidth={0.6}
+                    opacity={alive ? 1 : 0.25}
+                    filter={isActive ? 'url(#glow-sm)' : undefined}
+                  />
+                  {/* Filament (white core when lit) */}
+                  {isActive && alive && (
+                    <circle cx={gx} cy={gy} r={1.8}
+                      fill="white" opacity={0.9}
+                    />
+                  )}
+                  {/* Packet-flash glow halo — faded in/out by packet RAF via DOM */}
+                  <circle
+                    data-relic-planet={node.id}
+                    data-relic-tower={k}
+                    cx={gx} cy={gy} r={13}
+                    fill={color} opacity={0}
+                    filter="url(#glow)"
+                  />
+                  {/* Tower index label */}
+                  <text x={lx} y={ly}
+                    textAnchor="middle" dominantBaseline="middle"
+                    fontFamily="'JetBrains Mono', monospace"
+                    fontSize="6"
+                    fill={isActive ? color : (alive ? `${color}99` : COLORS.STEEL)}
+                    opacity={isActive ? 0.9 : 0.38}
+                  >T{k + 1}</text>
+                </g>
               )
             })}
 
