@@ -11,7 +11,7 @@ function RoleChip({ role }: { role: string }) {
   const color = ROLE_COLOR[role?.toLowerCase()] ?? COLORS.STEEL
   return (
     <span style={{
-      fontSize: '11px', fontWeight: 700,
+      fontSize: '12px', fontWeight: 700,
       color, border: `1.5px solid ${color}`,
       borderRadius: '6px 4px 7px 4px', padding: '1px 7px',
       background: `${color}12`,
@@ -37,7 +37,7 @@ export function HopLogPanel() {
         {hops.length === 0 ? (
           <div style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '10px', color: COLORS.TEXT_DIM, letterSpacing: '0.08em',
+            fontSize: '12px', color: COLORS.TEXT_DIM, letterSpacing: '0.08em',
           }}>
             No route yet — send a message first.
           </div>
@@ -49,9 +49,9 @@ export function HopLogPanel() {
                   {['Planet','Role','In','Out','Towers','Fiber ms','Void km','Void ms'].map(h => (
                     <th key={h} style={{
                       fontFamily: "'Orbitron', sans-serif",
-                      fontSize: '6px', fontWeight: 700,
+                      fontSize: '11px', fontWeight: 700,
                       letterSpacing: '0.08em', color: COLORS.TEXT_DIM,
-                      padding: '4px 8px', textAlign: 'left',
+                      padding: '5px 8px', textAlign: 'left',
                       borderBottom: `1px solid rgba(52,227,255,0.1)`,
                       whiteSpace: 'nowrap',
                     }}>{h}</th>
@@ -73,7 +73,7 @@ export function HopLogPanel() {
                     }}>
                       <td style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '9px', fontWeight: 700,
+                        fontSize: '12px', fontWeight: 700,
                         color, padding: '5px 8px', whiteSpace: 'nowrap',
                       }}>
                         {(hop.planet ?? '-').toUpperCase()}
@@ -88,27 +88,27 @@ export function HopLogPanel() {
                       ].map((v, ci) => (
                         <td key={ci} style={{
                           fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: '9px', color: COLORS.TEXT_HI,
+                          fontSize: '12px', color: COLORS.TEXT_HI,
                           padding: '5px 8px', textAlign: 'center',
                         }}>{String(v)}</td>
                       ))}
                       <td style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '9px', color: '#A78BFA',
+                        fontSize: '12px', color: '#A78BFA',
                         padding: '5px 8px', textAlign: 'right',
                       }}>
                         {fiberMs != null ? fiberMs.toFixed(3) : '-'}
                       </td>
                       <td style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '9px', color: COLORS.TEXT_DIM,
+                        fontSize: '12px', color: COLORS.TEXT_DIM,
                         padding: '5px 8px', textAlign: 'right',
                       }}>
                         {voidKm != null ? Number(voidKm).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}
                       </td>
                       <td style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '9px', color: COLORS.CYAN,
+                        fontSize: '12px', color: COLORS.CYAN,
                         padding: '5px 8px', textAlign: 'right',
                       }}>
                         {voidMs != null ? voidMs.toFixed(3) : '-'}

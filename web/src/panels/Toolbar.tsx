@@ -243,7 +243,7 @@ export function Toolbar() {
             border: '1px solid rgba(255,45,155,0.25)',
             borderRadius: '2px',
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '8px', letterSpacing: '0.06em',
+            fontSize: '15px', letterSpacing: '0.06em',
             color: COLORS.MAGENTA,
           }}>
             Click a planet or link on the map to break it
@@ -273,7 +273,7 @@ export function Toolbar() {
               color: loadingCfg ? COLORS.TEXT_DIM : COLORS.TEXT_HI,
               border: `2px solid ${INK.LINE}`,
               borderRadius: '9px 7px 10px 7px',
-              fontSize: '13px', fontWeight: 700,
+              fontSize: '15px', fontWeight: 700,
               cursor: loadingCfg ? 'not-allowed' : 'pointer',
               outline: 'none',
               transition: 'all 0.15s',
