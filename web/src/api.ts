@@ -73,6 +73,21 @@ export async function toggleLink(
   }
 }
 
+export async function postConfig(config: object): Promise<Snapshot | null> {
+  try {
+    const res = await fetch(`${BASE}/universe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return (await res.json()) as Snapshot
+  } catch (err) {
+    console.error('[api] postConfig failed:', err)
+    return null
+  }
+}
+
 export async function resetUniverse(): Promise<Snapshot | null> {
   try {
     const res = await fetch(`${BASE}/reset`, { method: 'POST' })
