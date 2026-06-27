@@ -11,12 +11,10 @@ function RoleChip({ role }: { role: string }) {
   const color = ROLE_COLOR[role?.toLowerCase()] ?? COLORS.STEEL
   return (
     <span style={{
-      fontFamily: "'Orbitron', sans-serif",
-      fontSize: '6px', fontWeight: 700,
-      letterSpacing: '0.06em',
-      color, border: `1px solid ${color}66`,
-      borderRadius: '2px', padding: '2px 5px',
-      background: `${color}0D`,
+      fontSize: '11px', fontWeight: 700,
+      color, border: `1.5px solid ${color}`,
+      borderRadius: '6px 4px 7px 4px', padding: '1px 7px',
+      background: `${color}12`,
     }}>
       {(role ?? 'RELAY').toUpperCase()}
     </span>

@@ -17,6 +17,9 @@ const MAX_ZOOM = 6
 const MIN_VIEW_W = W / MAX_ZOOM
 const MIN_VIEW_H = H / MAX_ZOOM
 
+// Routing towers are drawn in red, brightened on hover / when on the route.
+const TOWER_RED = '#E5484D'
+
 // ─── Planet crayon palette — muted hand-coloured tones (one per codex) ───────
 // [fill, shade] pairs. Fill is the flat crayon colour; shade is a darker tone
 // used for light pencil shading on the body. Indices map to codex (mod length).
@@ -375,6 +378,9 @@ export function SceneCanvas() {
   const panning = useRef<{ cx: number; cy: number; vx: number; vy: number; scale: number } | null>(null)
   const dragged = useRef(false)
 
+  // Which planet the cursor is over (highlights that planet's towers).
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+
   const clientToUser = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current
     const ctm = svg?.getScreenCTM()
@@ -515,14 +521,14 @@ export function SceneCanvas() {
         </pattern>
       </defs>
 
-      {/* Graph paper comes from the page background. Everything drawn below is
-          wrapped in the displacement filter so it wobbles like pen on paper. */}
-      <g filter="url(#sketch)">
+      {/* Graph paper comes from the page background. The sketch-wobble filter is
+          applied to individual SHAPES below (not text), so labels stay crisp. */}
 
       {/* ── Range rings (faint pencil compass) ────────────────────────────── */}
       {[80, 165, 255, 345, 425].map(r => (
         <circle key={r} cx={CX} cy={CY} r={r}
           fill="none" stroke={COLORS.STEEL} strokeWidth="0.5" opacity="0.09"
+          filter="url(#sketch)"
         />
       ))}
       {/* Cardinal tick marks */}
@@ -584,10 +590,11 @@ export function SceneCanvas() {
             {/* Main link */}
             <line x1={ax} y1={ay} x2={bx} y2={by}
               stroke={isRoute ? COLORS.CYAN : (alive ? COLORS.STEEL : COLORS.MAGENTA)}
-              strokeWidth={isRoute ? 1.6 : (alive ? 0.75 : 1)}
+              strokeWidth={isRoute ? 1.8 : (alive ? 0.9 : 1.2)}
               strokeDasharray={isRoute ? '10 5' : (!alive ? '5 4' : undefined)}
               className={isRoute && alive ? 'route-march' : undefined}
-              opacity={isRoute ? 0.92 : (alive ? 0.26 : 0.55)}
+              opacity={isRoute ? 0.92 : (alive ? 0.4 : 0.7)}
+              filter="url(#sketch)"
               style={{ pointerEvents: 'stroke' }}
             />
           </g>
@@ -603,10 +610,13 @@ export function SceneCanvas() {
         const alive   = node.alive
         const color   = planetColor(node.codex)
         const shade   = planetColorPair(node.codex)[1]
+        const hovered = hoveredId === node.id
 
         return (
           <g key={node.id}
             onClick={() => handlePlanetClick(node.id)}
+            onPointerOver={() => setHoveredId(node.id)}
+            onPointerOut={() => setHoveredId(h => (h === node.id ? null : h))}
             style={{ cursor: killMode ? 'crosshair' : 'default' }}
           >
             {/* Outer atmosphere corona */}
@@ -617,7 +627,8 @@ export function SceneCanvas() {
             {/* Atmosphere shell */}
             <circle cx={cx} cy={cy} r={ar}
               fill={`${color}10`} stroke={alive ? color : COLORS.MAGENTA}
-              strokeWidth="0.85" opacity={alive ? 0.38 : 0.14}
+              strokeWidth="0.85" opacity={alive ? 0.42 : 0.14}
+              filter="url(#sketch)"
             />
             {/* Inner atmosphere ring */}
             <circle cx={cx} cy={cy} r={(pr * 1.15 + ar) / 2}
@@ -653,14 +664,16 @@ export function SceneCanvas() {
             {alive ? (
               <>
                 <circle cx={cx} cy={cy} r={pr}
-                  fill={color} stroke={COLORS.TEXT_HI} strokeWidth={inRoute ? 2.6 : 2} />
+                  fill={color} stroke={COLORS.TEXT_HI} strokeWidth={inRoute ? 2.6 : 2}
+                  filter="url(#sketch)" />
                 <circle cx={cx + pr * 0.28} cy={cy + pr * 0.28} r={pr * 0.6}
-                  fill={shade} opacity="0.16" />
+                  fill={shade} opacity="0.16" filter="url(#sketch)" />
               </>
             ) : (
               <>
                 <circle cx={cx} cy={cy} r={pr}
-                  fill="#FBF5E6" stroke={COLORS.MAGENTA} strokeWidth="2" />
+                  fill="#FBF5E6" stroke={COLORS.MAGENTA} strokeWidth="2"
+                  filter="url(#sketch)" />
                 <circle cx={cx} cy={cy} r={pr}
                   fill="url(#hatch)" />
               </>
@@ -684,27 +697,32 @@ export function SceneCanvas() {
                     data-relic-planet={node.id}
                     data-relic-tower={k}
                     cx={tx} cy={ty} r={10}
-                    fill={color} opacity={0}
+                    fill={TOWER_RED} opacity={0}
                     filter="url(#glow)"
                   />
-                  {/* Tower dot sitting on equator */}
+                  {/* Hover / active highlight halo */}
+                  {alive && (hovered || isActive) && (
+                    <circle cx={tx} cy={ty} r={hovered ? 8.5 : 6}
+                      fill={TOWER_RED} opacity={hovered ? 0.3 : 0.18} />
+                  )}
+                  {/* Tower dot — red, bigger + brighter when hovered or on the route */}
                   <circle
                     cx={tx} cy={ty}
-                    r={isActive ? 3.5 : 2.2}
-                    fill={isActive ? color : (alive ? `${color}28` : `${COLORS.STEEL}40`)}
-                    stroke={isActive ? color : (alive ? `${color}80` : COLORS.STEEL)}
-                    strokeWidth={0.7}
-                    opacity={alive ? (isActive ? 1 : 0.72) : 0.2}
-                    filter={isActive ? 'url(#glow-sm)' : undefined}
+                    r={hovered ? 4.6 : isActive ? 3.8 : 2.6}
+                    fill={alive ? TOWER_RED : '#FBF5E6'}
+                    stroke={COLORS.TEXT_HI}
+                    strokeWidth={1}
+                    opacity={alive ? (hovered || isActive ? 1 : 0.85) : 0.35}
                   />
                   {/* Label — decluttered: only when active or zoomed in */}
-                  {(isActive || view.w < W * 0.55) && (
+                  {(isActive || hovered || view.w < W * 0.55) && (
                     <text x={lx} y={ly}
                       textAnchor="middle" dominantBaseline="middle"
                       fontFamily="'JetBrains Mono', monospace"
-                      fontSize="7.5"
-                      fill={isActive ? color : (alive ? `${color}99` : COLORS.STEEL)}
-                      opacity={isActive ? 0.95 : 0.4}
+                      fontSize="8.5"
+                      fill={isActive ? TOWER_RED : COLORS.TEXT_HI}
+                      stroke="#ECE3CE" strokeWidth="2" paintOrder="stroke"
+                      opacity={isActive || hovered ? 1 : 0.7}
                     >T{k + 1}</text>
                   )}
                 </g>
@@ -715,9 +733,9 @@ export function SceneCanvas() {
             <text x={cx} y={cy - ar - 7}
               textAnchor="middle"
               fontFamily="'Orbitron', sans-serif"
-              fontSize="12" fontWeight="700" letterSpacing="2"
+              fontSize="14" fontWeight="700" letterSpacing="1.5"
               fill={alive ? color : COLORS.TEXT_DIM}
-              filter={inRoute && alive ? 'url(#glow-xs)' : undefined}
+              stroke="#ECE3CE" strokeWidth="3.5" paintOrder="stroke"
             >
               {node.id.toUpperCase()}
             </text>
@@ -725,8 +743,9 @@ export function SceneCanvas() {
             <text x={cx} y={cy - ar - 20}
               textAnchor="middle"
               fontFamily="'JetBrains Mono', monospace"
-              fontSize="9" letterSpacing="0.04em"
-              fill={COLORS.TEXT_DIM} opacity="0.65"
+              fontSize="10" letterSpacing="0.04em"
+              fill={COLORS.TEXT_HI} opacity="0.85"
+              stroke="#ECE3CE" strokeWidth="2.5" paintOrder="stroke"
             >
               BASE-{node.codex}
             </text>
@@ -734,8 +753,7 @@ export function SceneCanvas() {
         )
       })}
 
-      {/* ── Packet (all DOM-mutated, no React re-renders per frame) ─────── */}
-      </g>{/* end hand-drawn sketch group */}
+      {/* ── Packet (the pen tracing the route; kept crisp, no wobble) ────── */}
 
       {/* Trail */}
       {Array.from({ length: TRAIL_LEN }, (_, i) => (
