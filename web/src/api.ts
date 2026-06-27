@@ -108,12 +108,13 @@ export function connectWS(
       try {
         const data = JSON.parse(event.data as string) as {
           type: string
-          [key: string]: unknown
+          snapshot?: Snapshot
+          result?: RouteResult
         }
-        if (data.type === 'topology') {
-          onTopology(data as unknown as Snapshot)
-        } else if (data.type === 'route') {
-          onRoute(data as unknown as RouteResult)
+        if (data.type === 'topology' && data.snapshot) {
+          onTopology(data.snapshot)
+        } else if (data.type === 'route' && data.result) {
+          onRoute(data.result)
         }
       } catch {
         // malformed frame — ignore
