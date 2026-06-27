@@ -224,11 +224,12 @@ export default function App() {
           </div>
         )}
 
-        {/* Reopen tab when the panel is collapsed */}
+        {/* Reopen tab when the panel is collapsed — sits below the "Key"
+            button (top: 14) so the two no longer overlap. */}
         {!mobile && panelMode === 'collapsed' && (
           <button className="rail-btn" onClick={() => setPanelMode('normal')}
             title="Show the details panel"
-            style={{ position: 'absolute', top: 10, right: 10, zIndex: 25 }}>
+            style={{ position: 'absolute', top: 56, right: 14, zIndex: 25 }}>
             Show details
           </button>
         )}
