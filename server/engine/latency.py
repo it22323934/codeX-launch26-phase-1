@@ -82,14 +82,15 @@ def compute_path_latency(path: list[str], universe: "Universe", constants: Const
         # --- Tower count at this planet ---
         # Official spec (Equations §3): m = s+1 where s = ring segments traveled.
         # m = 1 when entry tower = exit tower (dedup case, s=0).
+        fiber_segments_s = 0
         if is_origin:
             towers_hit = 1  # send tower only, no traversal (s=0, m=1)
         elif is_dest:
             towers_hit = 1  # recv tower only, no traversal (s=0, m=1)
         else:
             # relay: traverse s segments from recv to send tower; hit s+1 distinct towers
-            s = tower_segment_count(nodes[planet_id], recv_tower, send_tower)  # type: ignore[arg-type]
-            towers_hit = 1 if s == 0 else s + 1
+            fiber_segments_s = tower_segment_count(nodes[planet_id], recv_tower, send_tower)  # type: ignore[arg-type]
+            towers_hit = 1 if fiber_segments_s == 0 else fiber_segments_s + 1
 
         tower_delay = constants.tower_delay_ms * towers_hit
         tower_total += tower_delay
@@ -100,7 +101,7 @@ def compute_path_latency(path: list[str], universe: "Universe", constants: Const
             arc_km = fiber_arc_length_km(node, recv_tower, send_tower)  # type: ignore[arg-type]
             fiber_ms = arc_km / (constants.fiber_speed_fraction * constants.speed_of_light_kms) * 1000.0
             fiber_total += fiber_ms
-            fiber_entry = {"arc_km": arc_km, "ms": fiber_ms}
+            fiber_entry = {"arc_km": arc_km, "ms": fiber_ms, "segments_s": fiber_segments_s}
 
         # --- Crossing (all planets except destination) ---
         crossing_entry: dict | None = None
@@ -116,9 +117,13 @@ def compute_path_latency(path: list[str], universe: "Universe", constants: Const
 
             crossing_entry = {
                 "to": path[i + 1],
+                "h_out_km": node.atmosphere_thickness_km,
+                "n_out": node.refraction_index,
                 "atmosphere_out_ms": atm_out_ms,
                 "void_km": void_km,
                 "void_ms": void_ms,
+                "h_in_km": next_node.atmosphere_thickness_km,
+                "n_in": next_node.refraction_index,
                 "atmosphere_in_ms": atm_in_ms,
                 "total_ms": atm_out_ms + void_ms + atm_in_ms,
             }
@@ -134,6 +139,15 @@ def compute_path_latency(path: list[str], universe: "Universe", constants: Const
                 "tower_delay_ms": tower_delay,
                 "fiber": fiber_entry,
                 "crossing": crossing_entry,
+                # Raw formula inputs for frontend verification
+                "radius_km": node.radius_km,
+                "atmosphere_km": node.atmosphere_thickness_km,
+                "refraction_n": node.refraction_index,
+                "active_towers_n": node.active_towers,
+                "fiber_segments_s": fiber_segments_s,
+                "tower_delay_each_ms": constants.tower_delay_ms,
+                "fiber_speed_fraction": constants.fiber_speed_fraction,
+                "speed_of_light_kms": constants.speed_of_light_kms,
             }
         )
 

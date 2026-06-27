@@ -80,6 +80,7 @@ def build_translation_log(text: str, planets: list[dict]) -> list[dict]:
         log.append(
             {
                 "planet_id": planet["id"],
+                "codex": current_base,
                 "received_as": received_as,
                 "ascii": text,
                 "sent_as": sent_as,
