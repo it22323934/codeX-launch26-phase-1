@@ -174,6 +174,24 @@ export async function toggleLink(
   }
 }
 
+/** Reload the universe from the server's default config file. */
+export async function loadDefaultConfig(): Promise<LoadResult> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}/universe/default`, { method: 'POST' })
+  } catch {
+    return { ok: false, error: 'Cannot reach the routing engine.' }
+  }
+  if (!res.ok) return { ok: false, error: await readError(res) }
+  let data: unknown
+  try { data = await res.json() } catch {
+    return { ok: false, error: 'Engine returned a response that is not valid JSON.' }
+  }
+  const invalid = validateSnapshot(data)
+  if (invalid) return { ok: false, error: `Malformed snapshot from engine: ${invalid}` }
+  return { ok: true, snapshot: data as Snapshot }
+}
+
 /** Back-compat config upload returning the snapshot or null. */
 export async function postConfig(config: object): Promise<Snapshot | null> {
   const result = await uploadConfig(config)

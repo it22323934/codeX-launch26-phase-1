@@ -100,6 +100,24 @@ async def api_post_universe(body: dict = Body(...)) -> dict:
     return snap
 
 
+@router.post("/universe/default")
+async def api_load_default_universe() -> dict:
+    """Reload the universe from the default config file on disk."""
+    global _universe, _load_error
+    path = get_config_path()
+    try:
+        data = load_config(path)
+        _universe = _make_universe(data)
+        _load_error = None
+    except ConfigError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Default config failed validation: {exc}")
+    snap = _universe.snapshot()
+    await manager.broadcast_topology(_universe, _universe.constants)
+    return snap
+
+
 @router.post("/route")
 async def api_route(req: RouteRequest) -> dict:
     """Compute the lowest-latency route and return hop-by-hop details."""
