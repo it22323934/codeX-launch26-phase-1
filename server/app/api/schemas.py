@@ -38,13 +38,18 @@ class ToggleLinkRequest(BaseModel):
 class FiberSegment(BaseModel):
     arc_km: float
     ms: float
+    segments_s: int = 0
 
 
 class CrossingSegment(BaseModel):
     to: str
+    h_out_km: float = 0.0
+    n_out: float = 1.0
     atmosphere_out_ms: float
     void_km: float
     void_ms: float
+    h_in_km: float = 0.0
+    n_in: float = 1.0
     atmosphere_in_ms: float
     total_ms: float
 
@@ -59,6 +64,15 @@ class HopEntry(BaseModel):
     tower_delay_ms: float
     fiber: Optional[FiberSegment]
     crossing: Optional[CrossingSegment]
+    # Raw formula inputs
+    radius_km: float = 0.0
+    atmosphere_km: float = 0.0
+    refraction_n: float = 1.0
+    active_towers_n: int = 0
+    fiber_segments_s: int = 0
+    tower_delay_each_ms: float = 7.0
+    fiber_speed_fraction: float = 0.67
+    speed_of_light_kms: float = 300_000.0
 
 
 class LatencySummary(BaseModel):
@@ -71,6 +85,7 @@ class LatencySummary(BaseModel):
 
 class TranslationStage(BaseModel):
     planet_id: str
+    codex: int
     received_as: list[str]
     ascii: str
     sent_as: Optional[list[str]]

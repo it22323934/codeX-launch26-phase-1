@@ -1,183 +1,437 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useStore } from '../store'
 import { COLORS } from '../constants/visual'
 
-const mono = (color: string = COLORS.TEXT_HI, size = '9px'): React.CSSProperties => ({
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: size, color, lineHeight: '1.6', wordBreak: 'break-all',
-})
+// ─── tiny helpers ────────────────────────────────────────────────────────────
 
-function HopCard({ entry, index }: { entry: any; index: number }) {
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontFamily: "'Orbitron', sans-serif",
+      fontSize: '7px', fontWeight: 700,
+      letterSpacing: '0.16em', color: COLORS.TEXT_DIM,
+      marginBottom: '5px',
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function CodeBlock({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '10px', color, lineHeight: '1.6',
+      wordBreak: 'break-all',
+      padding: '6px 10px',
+      background: `${color}0A`,
+      borderLeft: `2px solid ${color}`,
+      borderRadius: '0 3px 3px 0',
+      marginBottom: '10px',
+    }}>
+      {children}
+    </div>
+  )
+}
+
+// ─── Math section ─────────────────────────────────────────────────────────────
+
+interface MRow { label: string; sub?: string; value: string; total?: boolean }
+
+function MathBlock({
+  title, formula, color, rows,
+}: {
+  title: string; formula: string; color: string; rows: MRow[]
+}) {
+  return (
+    <div style={{
+      marginBottom: '10px',
+      borderRadius: '4px',
+      overflow: 'hidden',
+      border: `1px solid ${color}30`,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '7px 12px',
+        background: `${color}12`,
+        borderBottom: `1px solid ${color}22`,
+      }}>
+        <div style={{
+          fontFamily: "'Orbitron', sans-serif",
+          fontSize: '8px', fontWeight: 700,
+          letterSpacing: '0.16em', color,
+        }}>
+          {title}
+        </div>
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '8px', color: `${color}99`,
+          marginTop: '2px', letterSpacing: '0.05em',
+        }}>
+          {formula}
+        </div>
+      </div>
+
+      {/* Rows */}
+      <div style={{ padding: '4px 0' }}>
+        {rows.map((row, i) => {
+          if (row.label === '---') {
+            return (
+              <div key={i} style={{ height: '1px', background: `${color}18`, margin: '4px 0' }} />
+            )
+          }
+          if (row.total) {
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '6px 12px',
+                background: `${color}10`,
+                borderTop: `1px solid ${color}28`,
+                marginTop: '4px',
+              }}>
+                <span style={{
+                  fontFamily: "'Orbitron', sans-serif",
+                  fontSize: '8px', fontWeight: 700,
+                  letterSpacing: '0.14em', color,
+                }}>
+                  {row.label}
+                </span>
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '11px', fontWeight: 700, color,
+                  textShadow: `0 0 10px ${color}88`,
+                }}>
+                  {row.value}
+                </span>
+              </div>
+            )
+          }
+          return (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+              padding: '3px 12px', gap: '10px',
+            }}>
+              <div>
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '9px', color: COLORS.TEXT_DIM,
+                }}>
+                  {row.label}
+                </span>
+                {row.sub && (
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: '7.5px', color: `${color}70`,
+                    marginLeft: '6px',
+                  }}>
+                    {row.sub}
+                  </span>
+                )}
+              </div>
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '9.5px', color: COLORS.TEXT_HI,
+                textAlign: 'right', flexShrink: 0,
+              }}>
+                {row.value}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Tab bar ─────────────────────────────────────────────────────────────────
+
+function TabBar({
+  active, onChange,
+}: {
+  active: 'codex' | 'math'; onChange: (t: 'codex' | 'math') => void
+}) {
+  const tabs: Array<{ key: 'codex' | 'math'; label: string }> = [
+    { key: 'codex', label: 'CODEX' },
+    { key: 'math',  label: 'LATENCY MATH' },
+  ]
+  return (
+    <div style={{
+      display: 'flex', gap: '4px',
+      padding: '8px 10px 0',
+      borderBottom: '1px solid rgba(52,227,255,0.1)',
+      marginBottom: '10px',
+    }}>
+      {tabs.map(t => (
+        <button
+          key={t.key}
+          onClick={() => onChange(t.key)}
+          style={{
+            padding: '4px 12px 6px',
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: '7px', fontWeight: 700,
+            letterSpacing: '0.14em',
+            color: active === t.key ? COLORS.CYAN : COLORS.TEXT_DIM,
+            background: 'transparent',
+            border: 'none',
+            borderBottom: active === t.key
+              ? `2px solid ${COLORS.CYAN}`
+              : '2px solid transparent',
+            cursor: 'pointer', outline: 'none',
+            marginBottom: '-1px',
+            transition: 'all 0.12s',
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ─── Hop card ────────────────────────────────────────────────────────────────
+
+function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }) {
   const [open, setOpen] = useState(index === 0)
-  const isOpen = open
+  const [tab,  setTab]  = useState<'codex' | 'math'>('codex')
+
+  // ---- math inputs ----
+  const fib  = hop?.fiber
+  const crx  = hop?.crossing
+  const c    = hop?.speed_of_light_kms   ?? 300_000
+  const f    = hop?.fiber_speed_fraction ?? 0.67
+  const dt   = hop?.tower_delay_each_ms  ?? 7
+  const m    = hop?.towers_hit           ?? 1
+  const s    = hop?.fiber_segments_s     ?? 0
+  const r    = hop?.radius_km            ?? 0
+  const N    = hop?.active_towers_n      ?? 0
+  const fiberSpeed = f * c
+
+  const fmt = (n: number, dec = 4) => n.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec })
+  const fmtKm = (n: number) => Math.round(n).toLocaleString() + ' km'
+
+  // ── T_p rows ──
+  const tpTower = m * dt
+  const tpFiber = fib?.ms ?? 0
+  const tpTotal = tpTower + tpFiber
+
+  const tpRows: MRow[] = [
+    { label: 'Towers hit  (m)',       value: `${m}` },
+    { label: 'Tower delay (Δt)',       value: `${dt} ms` },
+    { label: 'm × Δt',                value: `${m} × ${dt} = ${fmt(tpTower, 3)} ms` },
+  ]
+  if (fib) {
+    tpRows.push({ label: '---', value: '' })
+    tpRows.push({ label: 'Planet radius (r)',  value: fmtKm(r) })
+    tpRows.push({ label: 'Ring towers   (N)',  value: `${N}` })
+    tpRows.push({ label: 'Segments      (s)',  value: `${s}` })
+    tpRows.push({ label: 'Fiber arc  2πr·s/N', sub: `= ${fmt(fib.arc_km, 4)} km`, value: `${fmt(fib.arc_km, 4)} km` })
+    tpRows.push({ label: 'Speed  f·c', sub: `${f}×${c.toLocaleString()}`, value: `${fiberSpeed.toLocaleString()} km/s` })
+    tpRows.push({ label: 'Fiber delay  arc/(f·c)', value: `${fmt(fib.ms, 4)} ms` })
+  }
+  tpRows.push({ label: 'T_p', value: `${fmt(tpTotal, 3)} ms`, total: true })
+
+  // ── T_v rows ──
+  const tvRows: MRow[] = []
+  if (crx) {
+    tvRows.push({ label: 'h₁  atm out',      sub: `${crx.h_out_km} km`,  value: '' })
+    tvRows.push({ label: 'n₁  refraction',   value: `${crx.n_out}` })
+    tvRows.push({ label: 'h₁·n₁ / c',        value: `${fmt(crx.atmosphere_out_ms)} ms` })
+    tvRows.push({ label: '---', value: '' })
+    tvRows.push({ label: 'Void distance (L)', value: fmtKm(crx.void_km) })
+    tvRows.push({ label: 'L / c',             value: `${fmt(crx.void_ms)} ms` })
+    tvRows.push({ label: '---', value: '' })
+    tvRows.push({ label: 'h₂  atm in',       sub: `${crx.h_in_km} km`,   value: '' })
+    tvRows.push({ label: 'n₂  refraction',   value: `${crx.n_in}` })
+    tvRows.push({ label: 'h₂·n₂ / c',        value: `${fmt(crx.atmosphere_in_ms)} ms` })
+    tvRows.push({ label: 'T_v', value: `${fmt(crx.total_ms)} ms`, total: true })
+  }
+
+  const roleColor = hop?.role === 'origin' ? COLORS.CYAN
+    : hop?.role === 'destination' ? '#A8FF78'
+    : COLORS.MAGENTA
 
   return (
-    <div style={{ marginBottom: '5px' }}>
+    <div style={{ marginBottom: '6px' }}>
+      {/* ── header ── */}
       <button
         onClick={() => setOpen(o => !o)}
         style={{
           width: '100%', display: 'flex',
           alignItems: 'center', justifyContent: 'space-between',
-          padding: '7px 10px',
-          background: isOpen ? 'rgba(52,227,255,0.06)' : 'rgba(52,227,255,0.02)',
-          border: `1px solid ${isOpen ? 'rgba(52,227,255,0.25)' : 'rgba(52,227,255,0.1)'}`,
-          borderRadius: isOpen ? '3px 3px 0 0' : '3px',
-          cursor: 'pointer', outline: 'none',
-          transition: 'all 0.15s',
+          padding: '9px 12px',
+          background: open ? 'rgba(52,227,255,0.07)' : 'rgba(52,227,255,0.02)',
+          border: `1px solid ${open ? 'rgba(52,227,255,0.28)' : 'rgba(52,227,255,0.1)'}`,
+          borderRadius: open ? '4px 4px 0 0' : '4px',
+          cursor: 'pointer', outline: 'none', transition: 'all 0.15s',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '8px', color: COLORS.TEXT_DIM,
+            fontSize: '9px', color: COLORS.TEXT_DIM, minWidth: '18px',
           }}>
             {String(index + 1).padStart(2, '0')}
           </span>
           <span style={{
             fontFamily: "'Orbitron', sans-serif",
-            fontSize: '8px', fontWeight: 700,
-            letterSpacing: '0.12em', color: COLORS.CYAN,
+            fontSize: '9px', fontWeight: 700,
+            letterSpacing: '0.14em', color: COLORS.CYAN,
           }}>
-            {(entry.planet_id ?? entry.planet ?? `HOP ${index + 1}`).toUpperCase()}
+            {(entry.planet_id ?? `HOP ${index + 1}`).toUpperCase()}
+          </span>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '7px', color: roleColor,
+            padding: '1px 5px',
+            border: `1px solid ${roleColor}44`,
+            borderRadius: '2px',
+            textTransform: 'uppercase',
+          }}>
+            {hop?.role ?? ''}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '8px', color: COLORS.MAGENTA,
-            padding: '1px 6px',
-            border: `1px solid rgba(255,45,155,0.3)`,
-            borderRadius: '2px',
+            fontSize: '9px', color: COLORS.MAGENTA,
+            padding: '2px 8px',
+            border: `1px solid rgba(255,45,155,0.35)`,
+            borderRadius: '3px',
+            letterSpacing: '0.06em',
           }}>
             BASE-{entry.codex ?? '?'}
           </span>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '9px', color: COLORS.TEXT_DIM,
+            fontSize: '10px', color: COLORS.TEXT_DIM,
           }}>
-            {isOpen ? '[-]' : '[+]'}
+            {open ? '▲' : '▼'}
           </span>
         </div>
       </button>
 
-      {isOpen && (
+      {/* ── expanded body ── */}
+      {open && (
         <div style={{
-          padding: '10px 12px',
-          background: 'rgba(5,6,10,0.6)',
-          border: '1px solid rgba(52,227,255,0.1)', borderTop: 'none',
-          borderRadius: '0 0 3px 3px',
+          background: 'rgba(5,6,10,0.7)',
+          border: '1px solid rgba(52,227,255,0.12)',
+          borderTop: 'none',
+          borderRadius: '0 0 4px 4px',
         }}>
-          {/* RECEIVED */}
-          {entry.received_as != null && (
-            <div style={{ marginBottom: '8px' }}>
-              <div style={{
-                fontFamily: "'Orbitron', sans-serif",
-                fontSize: '6px', fontWeight: 700,
-                letterSpacing: '0.14em', color: COLORS.TEXT_DIM,
-                marginBottom: '4px',
-              }}>
-                RX — BASE-{entry.codex}
-              </div>
-              <div style={{
-                ...mono(COLORS.CYAN, '9px'),
-                padding: '4px 8px',
-                background: 'rgba(52,227,255,0.04)',
-                borderLeft: `2px solid ${COLORS.CYAN}`,
-                borderRadius: '0 2px 2px 0',
-              }}>
-                [{(entry.received_as as string[]).join(', ')}]
-              </div>
-            </div>
-          )}
+          <TabBar active={tab} onChange={setTab} />
 
-          {/* ASCII internal */}
-          {entry.ascii != null && (
-            <div style={{ marginBottom: '8px' }}>
-              <div style={{
-                fontFamily: "'Orbitron', sans-serif",
-                fontSize: '6px', fontWeight: 700,
-                letterSpacing: '0.14em', color: COLORS.TEXT_DIM,
-                marginBottom: '4px',
-              }}>
-                ASCII INTERNAL
-              </div>
-              <div style={{
-                ...mono(COLORS.TEXT_HI, '10px'),
-                padding: '4px 8px',
-                background: 'rgba(220,235,255,0.04)',
-                borderLeft: `2px solid rgba(220,235,255,0.3)`,
-                borderRadius: '0 2px 2px 0',
-              }}>
-                "{entry.ascii}"
-              </div>
-            </div>
-          )}
+          <div style={{ padding: '0 12px 12px' }}>
 
-          {/* TRANSMITTED */}
-          {entry.sent_as != null && (
-            <div style={{ marginBottom: '8px' }}>
-              <div style={{
-                fontFamily: "'Orbitron', sans-serif",
-                fontSize: '6px', fontWeight: 700,
-                letterSpacing: '0.14em', color: COLORS.TEXT_DIM,
-                marginBottom: '4px',
-              }}>
-                TX — NEXT BASE
-              </div>
-              <div style={{
-                ...mono(COLORS.MAGENTA, '9px'),
-                padding: '4px 8px',
-                background: 'rgba(255,45,155,0.04)',
-                borderLeft: `2px solid ${COLORS.MAGENTA}`,
-                borderRadius: '0 2px 2px 0',
-              }}>
-                [{(entry.sent_as as string[]).join(', ')}]
-              </div>
-            </div>
-          )}
+            {/* ── CODEX tab ── */}
+            {tab === 'codex' && (
+              <>
+                {entry.received_as != null && (
+                  <>
+                    <Label>RX — BASE-{entry.codex}</Label>
+                    <CodeBlock color={COLORS.CYAN}>
+                      [{(entry.received_as as string[]).join(', ')}]
+                    </CodeBlock>
+                  </>
+                )}
 
-          {/* BINARY STREAM */}
-          {entry.binary_stream != null && (
-            <div>
+                {entry.ascii != null && (
+                  <>
+                    <Label>ASCII INTERNAL</Label>
+                    <CodeBlock color={COLORS.TEXT_HI}>
+                      "{entry.ascii}"
+                    </CodeBlock>
+                  </>
+                )}
+
+                {entry.sent_as != null && (
+                  <>
+                    <Label>TX — NEXT BASE</Label>
+                    <CodeBlock color={COLORS.MAGENTA}>
+                      [{(entry.sent_as as string[]).join(', ')}]
+                    </CodeBlock>
+                  </>
+                )}
+
+                {entry.binary_stream != null && (
+                  <>
+                    <Label>BINARY STREAM</Label>
+                    <div style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '8.5px', color: COLORS.TEXT_DIM,
+                      lineHeight: '1.8', letterSpacing: '0.08em',
+                      wordBreak: 'break-all',
+                      padding: '6px 10px',
+                      background: 'rgba(58,74,99,0.12)',
+                      border: '1px solid rgba(58,74,99,0.35)',
+                      borderRadius: '3px',
+                      maxHeight: '60px', overflowY: 'auto',
+                    }}>
+                      {entry.binary_stream}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── MATH tab ── */}
+            {tab === 'math' && hop && (
+              <>
+                <MathBlock
+                  title="Tp — INTERNAL TRANSIT"
+                  formula="Tp = 2πr·s / (N·f·c)  +  m·Δt"
+                  color={COLORS.MAGENTA}
+                  rows={tpRows}
+                />
+                {crx && (
+                  <MathBlock
+                    title={`Tv — VOID CROSSING → ${crx.to.toUpperCase()}`}
+                    formula="Tv = (h₁·n₁ + L + h₂·n₂) / c"
+                    color={COLORS.CYAN}
+                    rows={tvRows}
+                  />
+                )}
+              </>
+            )}
+
+            {tab === 'math' && !hop && (
               <div style={{
-                fontFamily: "'Orbitron', sans-serif",
-                fontSize: '6px', fontWeight: 700,
-                letterSpacing: '0.14em', color: COLORS.TEXT_DIM,
-                marginBottom: '4px',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '9px', color: COLORS.TEXT_DIM,
+                padding: '10px 0',
               }}>
-                BINARY STREAM
+                No latency data for this hop.
               </div>
-              <div style={{
-                ...mono(COLORS.TEXT_DIM, '7px'),
-                padding: '4px 8px',
-                background: 'rgba(58,74,99,0.15)',
-                borderLeft: `2px solid rgba(58,74,99,0.5)`,
-                borderRadius: '0 2px 2px 0',
-                maxHeight: '44px', overflowY: 'auto',
-                letterSpacing: '0.06em',
-              }}>
-                {entry.binary_stream}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
+// ─── Panel ───────────────────────────────────────────────────────────────────
+
 export function EncodingPanel() {
   const translation = useStore(s => s.route?.translation ?? [])
+  const hopLog      = useStore(s => s.route?.hop_log      ?? [])
+
+  const hopMap = useMemo(() => {
+    const m = new Map<string, any>()
+    ;(hopLog as any[]).forEach(h => m.set(h.planet, h))
+    return m
+  }, [hopLog])
 
   return (
     <div>
       <div className="panel-header">
         <div className="panel-header-dot" />
         <span className="panel-header-title">CODEX TRANSLATION</span>
-        <span className="panel-header-badge">{translation.length > 0 ? `${translation.length} HOPS` : '--'}</span>
+        <span className="panel-header-badge">
+          {translation.length > 0 ? `${translation.length - 1} HOPS` : '--'}
+        </span>
       </div>
 
-      <div style={{ padding: '10px 14px' }}>
+      <div style={{ padding: '10px 12px 14px' }}>
         {translation.length === 0 ? (
           <div style={{
             fontFamily: "'JetBrains Mono', monospace",
@@ -186,9 +440,14 @@ export function EncodingPanel() {
             [ NO TRANSLATION LOG ]
           </div>
         ) : (
-          <div style={{ maxHeight: '220px', overflowY: 'auto', paddingRight: '2px' }}>
-            {translation.map((entry: any, i: number) => (
-              <HopCard key={i} entry={entry} index={i} />
+          <div style={{ maxHeight: '520px', overflowY: 'auto', paddingRight: '2px' }}>
+            {(translation as any[]).map((entry, i) => (
+              <HopCard
+                key={i}
+                entry={entry}
+                index={i}
+                hop={hopMap.get(entry.planet_id)}
+              />
             ))}
           </div>
         )}
