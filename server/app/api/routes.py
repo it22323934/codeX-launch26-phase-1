@@ -13,10 +13,6 @@ POST /api/reset                — revive all nodes and links
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Any
-
 from fastapi import APIRouter, HTTPException, Body
 
 from engine.models import UniverseConfig
@@ -25,7 +21,7 @@ from engine.constants import resolve_constants
 from engine.router import find_route
 from app.api.schemas import RouteRequest, ToggleNodeRequest, ToggleLinkRequest
 from app.api.ws import manager
-from app.config import get_config_path
+from app.config import ConfigError, get_config_path, load_config
 
 router = APIRouter(prefix="/api")
 
@@ -34,11 +30,17 @@ router = APIRouter(prefix="/api")
 # ---------------------------------------------------------------------------
 
 _universe: Universe | None = None
+# Why the live universe is missing, if it is. Surfaced via /health and as the
+# 503 detail on /api/universe so the frontend can show the exact reason.
+_load_error: str | None = None
 
 
 def get_universe() -> Universe:
     if _universe is None:
-        raise HTTPException(status_code=500, detail="Universe not loaded")
+        # 503: the service is up but has no valid universe loaded.
+        raise HTTPException(
+            status_code=503, detail=_load_error or "Universe not loaded"
+        )
     return _universe
 
 
@@ -49,12 +51,25 @@ def _make_universe(data: dict) -> Universe:
 
 
 def load_default_universe() -> None:
-    """Called on startup to load the config from disk."""
-    global _universe
+    """Load the config from disk at startup. Never raises.
+
+    A missing file, malformed JSON, or schema violation leaves the universe
+    unloaded and records a clear reason in ``_load_error`` instead of crashing
+    the process, so the server still starts and can report the problem.
+    """
+    global _universe, _load_error
     path = get_config_path()
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    _universe = _make_universe(data)
+    try:
+        data = load_config(path)
+        _universe = _make_universe(data)
+        _load_error = None
+    except ConfigError as exc:
+        _universe, _load_error = None, str(exc)
+        print(f"[config] failed to load universe: {exc}")
+    except Exception as exc:  # schema/validation or engine construction error
+        _universe = None
+        _load_error = f"Config failed validation: {exc}"
+        print(f"[config] {_load_error}")
 
 
 # ---------------------------------------------------------------------------
@@ -71,11 +86,15 @@ async def api_get_universe() -> dict:
 @router.post("/universe")
 async def api_post_universe(body: dict = Body(...)) -> dict:
     """Replace the current universe from a new config JSON body."""
-    global _universe
+    global _universe, _load_error
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=422, detail="Config must be a JSON object")
     try:
         _universe = _make_universe(body)
+        _load_error = None
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        # Keep the previously loaded universe; report why this one was rejected.
+        raise HTTPException(status_code=422, detail=f"Invalid config: {exc}")
     snap = _universe.snapshot()
     await manager.broadcast_topology(_universe, _universe.constants)
     return snap

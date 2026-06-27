@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;700&family=Share+Tech+Mono&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Kalam:wght@300;400;700&family=Patrick+Hand&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -182,6 +182,292 @@
         outline: none;
       }
       select option { background: #0A0E16; color: #DCEBFF; }
+
+      /* ════ HOLOGRAM STAGE ═══════════════════════════════════════════════ */
+      .holo-stage {
+        position: relative;
+        width: 100%; height: 100%;
+        overflow: hidden;
+        perspective: 1500px;              /* depth for the parallax tilt */
+        background:
+          radial-gradient(ellipse 70% 55% at 50% 50%, rgba(52,227,255,0.06), transparent 70%),
+          #05060A;
+      }
+      /* The projected map layer; App drives --holo-rx / --holo-ry from the cursor. */
+      .holo-tilt {
+        position: absolute; inset: 0; z-index: 2;
+        transform-style: preserve-3d;
+        transform: rotateX(var(--holo-rx, 0deg)) rotateY(var(--holo-ry, 0deg));
+        transition: transform 0.2s ease-out;
+        will-change: transform;
+      }
+      /* Soft cyan projector glow rising from the base of the table. */
+      .holo-projector {
+        position: absolute; left: -10%; right: -10%; bottom: -12%; height: 45%;
+        pointer-events: none; z-index: 1;
+        background: radial-gradient(ellipse 60% 100% at 50% 100%, rgba(52,227,255,0.16), transparent 72%);
+        animation: projector-pulse 4.5s ease-in-out infinite;
+      }
+      @keyframes projector-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 0.85; } }
+      /* Horizontal scanlines drifting upward, screen-blended. */
+      .holo-scanlines {
+        position: absolute; inset: -2%; pointer-events: none; z-index: 6;
+        background-image: repeating-linear-gradient(
+          to bottom,
+          rgba(52,227,255,0.045) 0px, rgba(52,227,255,0.045) 1px,
+          transparent 1px, transparent 3px);
+        mix-blend-mode: screen; opacity: 0.6;
+        animation: scanline-drift 7s linear infinite;
+      }
+      @keyframes scanline-drift { from { background-position: 0 0; } to { background-position: 0 -120px; } }
+      /* Occasional projection flicker. */
+      .holo-flicker {
+        position: absolute; inset: 0; pointer-events: none; z-index: 5;
+        background: rgba(52,227,255,0.03); mix-blend-mode: screen; opacity: 0;
+        animation: holo-flicker 6s steps(1) infinite;
+      }
+      @keyframes holo-flicker {
+        0%, 96%, 100% { opacity: 0; }
+        96.5% { opacity: 0.55; } 97% { opacity: 0.08; }
+        97.5% { opacity: 0.7; } 98% { opacity: 0.12; }
+      }
+      /* Edge vignette so the hologram fades into the void. */
+      .holo-vignette {
+        position: absolute; inset: 0; pointer-events: none; z-index: 7;
+        box-shadow: inset 0 0 180px 50px rgba(5,6,10,0.85);
+      }
+
+      /* ════ LOADING / ERROR OVERLAY ══════════════════════════════════════ */
+      .overlay {
+        position: absolute; inset: 0; z-index: 40;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 16px; text-align: center; padding: 28px;
+        background: rgba(5,6,10,0.74); backdrop-filter: blur(3px);
+      }
+      .overlay-title {
+        font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 700;
+        letter-spacing: 0.28em; color: #34E3FF;
+      }
+      .overlay-title.err { color: #FF2D9B; }
+      .overlay-msg {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #8DA2BF;
+        max-width: 440px; line-height: 1.65; letter-spacing: 0.03em;
+      }
+      .spinner {
+        width: 34px; height: 34px; border-radius: 50%;
+        border: 2px solid rgba(52,227,255,0.16); border-top-color: #34E3FF;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .btn-hud {
+        font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700;
+        letter-spacing: 0.16em; color: #34E3FF; background: rgba(52,227,255,0.08);
+        border: 1px solid rgba(52,227,255,0.4); border-radius: 3px;
+        padding: 10px 20px; cursor: pointer; transition: all 0.15s; outline: none;
+      }
+      .btn-hud:hover { background: rgba(52,227,255,0.18); box-shadow: 0 0 16px rgba(52,227,255,0.3); }
+      .btn-hud.err { color: #FF2D9B; border-color: rgba(255,45,155,0.4); background: rgba(255,45,155,0.08); }
+      .btn-hud.err:hover { background: rgba(255,45,155,0.18); box-shadow: 0 0 16px rgba(255,45,155,0.3); }
+
+      /* ════ MAP CONTROLS / LEGEND / HINT ═════════════════════════════════ */
+      .map-controls {
+        position: absolute; bottom: 16px; left: 16px; z-index: 14;
+        display: flex; flex-direction: column; gap: 6px;
+      }
+      .map-btn {
+        width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+        font-family: 'JetBrains Mono', monospace; font-size: 15px; line-height: 1;
+        color: #34E3FF; background: rgba(8,12,20,0.85);
+        border: 1px solid rgba(52,227,255,0.3); border-radius: 4px;
+        cursor: pointer; backdrop-filter: blur(8px); transition: all 0.12s;
+        outline: none; user-select: none;
+      }
+      .map-btn:hover { background: rgba(52,227,255,0.16); border-color: #34E3FF; }
+      .map-btn:active { transform: scale(0.94); }
+
+      .help-btn {
+        position: absolute; top: 14px; right: 14px; z-index: 14;
+        font-family: 'Orbitron', sans-serif; font-size: 8px; font-weight: 700;
+        letter-spacing: 0.14em; color: #6F8099; background: rgba(8,12,20,0.85);
+        border: 1px solid rgba(58,74,99,0.5); border-radius: 4px; padding: 8px 12px;
+        cursor: pointer; backdrop-filter: blur(8px); transition: all 0.12s; outline: none;
+      }
+      .help-btn:hover, .help-btn.on { color: #34E3FF; border-color: rgba(52,227,255,0.5); }
+
+      .legend {
+        position: absolute; top: 52px; right: 14px; z-index: 14;
+        background: rgba(8,12,20,0.92); border: 1px solid rgba(52,227,255,0.2);
+        border-radius: 4px; padding: 11px 13px; backdrop-filter: blur(10px);
+        max-width: 240px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+      }
+      .legend h4 {
+        font-family: 'Orbitron', sans-serif; font-size: 8px; font-weight: 700;
+        letter-spacing: 0.2em; color: rgba(52,227,255,0.8); margin-bottom: 9px;
+      }
+      .legend-row {
+        display: flex; align-items: center; gap: 9px; margin-bottom: 7px;
+        font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #8DA2BF;
+        letter-spacing: 0.03em;
+      }
+      .legend-row:last-child { margin-bottom: 0; }
+      .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+      .legend-line { width: 16px; flex-shrink: 0; }
+
+      .hint-pill {
+        position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+        z-index: 13; pointer-events: none; white-space: nowrap;
+        font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.06em;
+        color: #DCEBFF; background: rgba(8,12,20,0.85);
+        border: 1px solid rgba(52,227,255,0.25); border-radius: 20px; padding: 7px 16px;
+        backdrop-filter: blur(8px); box-shadow: 0 0 18px rgba(52,227,255,0.12);
+        animation: hint-bob 3s ease-in-out infinite;
+      }
+      @keyframes hint-bob {
+        0%,100% { transform: translateX(-50%) translateY(0); }
+        50%     { transform: translateX(-50%) translateY(-3px); }
+      }
+
+      /* Connection chip in the top bar. */
+      .conn-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.08em;
+      }
+
+      /* New animations also pause for reduced-motion users. */
+      @media (prefers-reduced-motion: reduce) {
+        .holo-scanlines, .holo-flicker, .holo-projector, .spinner, .hint-pill { animation: none !important; }
+        .holo-tilt { transition: none !important; transform: none !important; }
+      }
+
+      /* ══════════════════════════════════════════════════════════════════════
+         HAND-DRAWN SKETCHBOOK THEME (overrides the neon rules above)
+         ════════════════════════════════════════════════════════════════════ */
+
+      /* One handwriting font everywhere (beats the old inline font strings). */
+      *, *::before, *::after { font-family: 'Kalam', 'Patrick Hand', cursive !important; }
+      .sketch-title { font-family: 'Caveat', cursive !important; font-weight: 700; }
+
+      /* Warm graph-paper background. */
+      body {
+        background-color: #ECE3CE !important;
+        background-image:
+          linear-gradient(rgba(120,108,82,0.10) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(120,108,82,0.10) 1px, transparent 1px) !important;
+        background-size: 24px 24px !important;
+        color: #2B2722 !important;
+      }
+
+      /* Panels become cream cards with an irregular hand-drawn outline. */
+      .hud-panel {
+        background: #FBF5E6 !important;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        border: 2px solid #2B2722 !important;
+        border-radius: 16px 10px 18px 10px / 10px 18px 10px 16px !important;
+        box-shadow: 2px 3px 0 rgba(43,39,34,0.18) !important;
+      }
+      .hud-panel::before {
+        content: ''; position: absolute; inset: 3px;
+        width: auto !important; height: auto !important;
+        border: 1px solid rgba(43,39,34,0.22) !important;
+        border-radius: 13px 8px 15px 8px / 8px 15px 8px 13px !important;
+        pointer-events: none; z-index: 1;
+      }
+      .hud-panel::after { display: none !important; }
+
+      .panel-header {
+        border-bottom: 1.5px dashed rgba(43,39,34,0.35) !important;
+        background: transparent !important;
+      }
+      .panel-header-dot {
+        width: 8px; height: 8px;
+        background: #2E5E8C !important; border: 1.5px solid #2B2722;
+        box-shadow: none !important;
+      }
+      .panel-header-title {
+        font-size: 16px !important; font-weight: 700 !important;
+        letter-spacing: 0 !important; text-transform: none !important;
+        color: #2B2722 !important;
+      }
+      .panel-header-badge { font-size: 13px !important; color: #7B7059 !important; letter-spacing: 0 !important; }
+
+      /* Drop the neon hologram overlays; keep a soft paper vignette + gentle tilt. */
+      .holo-stage { background: transparent !important; }
+      .holo-projector, .holo-scanlines, .holo-flicker { display: none !important; }
+      .holo-vignette { box-shadow: inset 0 0 120px 34px rgba(120,108,80,0.20) !important; }
+
+      /* Sketch buttons. */
+      .btn-hud {
+        font-size: 14px !important; font-weight: 700 !important; letter-spacing: 0 !important;
+        color: #2B2722 !important; background: #FBF5E6 !important;
+        border: 2px solid #2B2722 !important;
+        border-radius: 11px 8px 12px 8px / 8px 12px 8px 11px !important;
+        box-shadow: 2px 2px 0 rgba(43,39,34,0.2) !important;
+      }
+      .btn-hud:hover { background: #2E5E8C !important; color: #FBF5E6 !important; box-shadow: 2px 2px 0 rgba(43,39,34,0.3) !important; }
+      .btn-hud.err { color: #C0392B !important; border-color: #C0392B !important; background: #FBF5E6 !important; }
+      .btn-hud.err:hover { background: #C0392B !important; color: #FBF5E6 !important; }
+
+      .map-btn {
+        color: #2B2722 !important; background: #FBF5E6 !important;
+        border: 2px solid #2B2722 !important;
+        border-radius: 10px 8px 11px 8px / 8px 11px 8px 10px !important;
+        backdrop-filter: none !important; box-shadow: 1.5px 2px 0 rgba(43,39,34,0.2) !important;
+        font-size: 18px !important;
+      }
+      .map-btn:hover { background: #2E5E8C !important; color: #FBF5E6 !important; border-color: #2B2722 !important; }
+
+      .help-btn {
+        color: #2B2722 !important; background: #FBF5E6 !important;
+        border: 2px solid #2B2722 !important;
+        border-radius: 10px 8px 11px 8px / 8px 11px 8px 10px !important;
+        backdrop-filter: none !important; box-shadow: 1.5px 2px 0 rgba(43,39,34,0.18) !important;
+        font-size: 13px !important; letter-spacing: 0 !important;
+      }
+      .help-btn:hover, .help-btn.on { color: #FBF5E6 !important; background: #2E5E8C !important; border-color: #2B2722 !important; }
+
+      .legend {
+        background: #FBF5E6 !important; border: 2px solid #2B2722 !important;
+        border-radius: 12px 9px 13px 9px / 9px 13px 9px 12px !important;
+        backdrop-filter: none !important; box-shadow: 2px 3px 0 rgba(43,39,34,0.18) !important;
+      }
+      .legend h4 { color: #2B2722 !important; font-size: 14px !important; letter-spacing: 0 !important; }
+      .legend-row { color: #2B2722 !important; font-size: 13px !important; letter-spacing: 0 !important; }
+      .legend-swatch { border: 1.5px solid #2B2722; }
+
+      .hint-pill {
+        color: #2B2722 !important; background: #FBF5E6 !important;
+        border: 2px solid #2B2722 !important; border-radius: 18px !important;
+        backdrop-filter: none !important; box-shadow: 2px 2px 0 rgba(43,39,34,0.18) !important;
+        font-size: 14px !important; letter-spacing: 0 !important;
+      }
+      .conn-chip { font-size: 12px !important; letter-spacing: 0 !important; }
+
+      /* Loading / error overlay on paper. */
+      .overlay { background: rgba(236,227,206,0.86) !important; backdrop-filter: blur(1px) !important; }
+      .overlay-title { color: #2E5E8C !important; font-size: 22px !important; letter-spacing: 0.01em !important; }
+      .overlay-title.err { color: #C0392B !important; }
+      .overlay-msg { color: #7B7059 !important; font-size: 15px !important; }
+      .spinner { border-color: rgba(43,39,34,0.16) !important; border-top-color: #2E5E8C !important; }
+
+      /* Pencil scrollbar + paper select menus. */
+      ::-webkit-scrollbar-thumb { background: rgba(43,39,34,0.32) !important; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(43,39,34,0.6) !important; }
+      select option { background: #FBF5E6 !important; color: #2B2722 !important; }
+
+      /* Info-panel rail header + its expand / full-screen controls. */
+      .rail-header {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 10px; flex-shrink: 0;
+        border-bottom: 2px solid #2B2722; background: #F1E7CF;
+      }
+      .rail-btn {
+        font-size: 13px; font-weight: 700; color: #2B2722;
+        background: #FBF5E6; border: 2px solid #2B2722;
+        border-radius: 9px 7px 10px 7px / 7px 10px 7px 9px;
+        padding: 4px 10px; cursor: pointer; outline: none;
+        box-shadow: 1.5px 2px 0 rgba(43,39,34,0.18);
+      }
+      .rail-btn:hover { background: #2E5E8C; color: #FBF5E6; }
     </style>
   </head>
   <body>

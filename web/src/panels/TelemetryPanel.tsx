@@ -62,7 +62,7 @@ export function TelemetryPanel() {
     <div>
       <div className="panel-header">
         <div className="panel-header-dot" />
-        <span className="panel-header-title">SIGNAL TELEMETRY</span>
+        <span className="panel-header-title">Latency</span>
         <span className="panel-header-badge">ms</span>
       </div>
 
@@ -73,7 +73,7 @@ export function TelemetryPanel() {
             fontSize: '10px', color: COLORS.TEXT_DIM,
             letterSpacing: '0.08em',
           }}>
-            [ AWAITING TRANSMISSION ]
+            Send a message to see the timing.
           </div>
         ) : (
           <>
@@ -126,8 +126,8 @@ export function TelemetryPanel() {
               <span style={{
                 fontFamily: "'Orbitron', sans-serif",
                 fontSize: '8px', fontWeight: 700,
-                letterSpacing: '0.16em', color: COLORS.TEXT_HI,
-              }}>TOTAL LATENCY</span>
+                letterSpacing: '0.04em', color: COLORS.TEXT_HI,
+              }}>Total time</span>
               <div style={{ textAlign: 'right' }}>
                 <div style={{
                   fontFamily: "'JetBrains Mono', monospace",

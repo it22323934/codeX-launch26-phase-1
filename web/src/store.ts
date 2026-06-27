@@ -71,6 +71,9 @@ export interface RouteResult {
   translation?: TranslationEntry[]
 }
 
+/** Initial-load lifecycle for the universe snapshot. */
+export type Connection = 'connecting' | 'online' | 'error'
+
 interface Store {
   snapshot: Snapshot | null
   originId: string
@@ -81,6 +84,12 @@ interface Store {
   animating: boolean
   booted: boolean
 
+  // ── Connection + error feedback ──────────────────────────────────────────
+  connection: Connection      // initial universe load state
+  loadError: string | null    // why the universe failed to load (human text)
+  wsConnected: boolean        // live link to the /ws push channel
+  transmitError: string | null// last route request that failed at the network level
+
   setSnapshot: (s: Snapshot) => void
   setOriginId: (id: string) => void
   setDestinationId: (id: string) => void
@@ -89,6 +98,11 @@ interface Store {
   setKillMode: (k: boolean) => void
   setAnimating: (a: boolean) => void
   setBooted: (b: boolean) => void
+
+  setConnection: (c: Connection) => void
+  setLoadError: (e: string | null) => void
+  setWsConnected: (b: boolean) => void
+  setTransmitError: (e: string | null) => void
 }
 
 export const useStore = create<Store>()(set => ({
@@ -101,6 +115,11 @@ export const useStore = create<Store>()(set => ({
   animating: false,
   booted: false,
 
+  connection: 'connecting',
+  loadError: null,
+  wsConnected: false,
+  transmitError: null,
+
   setSnapshot:     (s) => set({ snapshot: s }),
   setOriginId:     (id) => set({ originId: id }),
   setDestinationId:(id) => set({ destinationId: id }),
@@ -109,4 +128,9 @@ export const useStore = create<Store>()(set => ({
   setKillMode:     (k) => set({ killMode: k }),
   setAnimating:    (a) => set({ animating: a }),
   setBooted:       (b) => set({ booted: b }),
+
+  setConnection:    (c) => set({ connection: c }),
+  setLoadError:     (e) => set({ loadError: e }),
+  setWsConnected:   (b) => set({ wsConnected: b }),
+  setTransmitError: (e) => set({ transmitError: e }),
 }))

@@ -3,7 +3,7 @@
  * Spec §6: "Planets are modeled as 2D circles."
  * All physics values come from the API — this file owns presentation only.
  */
-import { useRef, useEffect, useMemo, useCallback } from 'react'
+import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 import { useStore } from '../store'
 import { COLORS } from '../constants/visual'
 import { toggleNode, toggleLink } from '../api'
@@ -12,27 +12,32 @@ import { toggleNode, toggleLink } from '../api'
 const W = 900, H = 620, PAD = 88
 const CX = W / 2, CY = H / 2
 
-// ─── Planet color palette — dynamic, works for any codex ─────────────────────
-// Indices map directly to codex value (mod length), preserving current planet
-// colours: 5=orange, 6=teal, 8=cyan, 10=gold, 14=purple, 16=pink-red.
+// Zoom/pan limits for the holographic map view.
+const MAX_ZOOM = 6
+const MIN_VIEW_W = W / MAX_ZOOM
+const MIN_VIEW_H = H / MAX_ZOOM
+
+// ─── Planet crayon palette — muted hand-coloured tones (one per codex) ───────
+// [fill, shade] pairs. Fill is the flat crayon colour; shade is a darker tone
+// used for light pencil shading on the body. Indices map to codex (mod length).
 const COLOR_PALETTE: [string, string][] = [
-  ['#E879F9', '#220030'],  //  0 magenta
-  ['#FF4D7E', '#260012'],  //  1 hot-pink
-  ['#FF6B6B', '#2a0000'],  //  2 red
-  ['#FFB347', '#2a1500'],  //  3 amber
-  ['#FCD34D', '#251900'],  //  4 yellow
-  ['#FF8C42', '#331500'],  //  5 orange      ← Boreas
-  ['#4DE9B0', '#002218'],  //  6 teal        ← Dawn
-  ['#5EE87A', '#001800'],  //  7 green
-  ['#34E3FF', '#001828'],  //  8 cyan        ← Aegis
-  ['#84D8FF', '#001a2a'],  //  9 sky-blue
-  ['#FFD166', '#2a1e00'],  // 10 gold        ← Elysium
-  ['#67E8F9', '#001520'],  // 11 ice-blue
-  ['#7DD3FC', '#001520'],  // 12 cornflower
-  ['#A78BFA', '#100028'],  // 13 lavender
-  ['#B06EFF', '#150028'],  // 14 purple      ← Caelum
-  ['#F472B6', '#250010'],  // 15 rose
-  ['#FF4D7E', '#260012'],  // 16 pink-red    ← Fenix
+  ['#C7869A', '#8A4A5C'],  //  0 rose
+  ['#D98C7A', '#9A4E3C'],  //  1 coral
+  ['#C0563E', '#7E2E1E'],  //  2 brick
+  ['#D99A4E', '#9A6520'],  //  3 amber
+  ['#D8B25A', '#9A7A28'],  //  4 mustard
+  ['#D98E50', '#9A5A22'],  //  5 orange      ← Boreas
+  ['#5E9B8C', '#2E5E50'],  //  6 teal        ← Dawn
+  ['#7FA86A', '#4A6E38'],  //  7 sage green
+  ['#5B93B0', '#2E5E78'],  //  8 sky ink     ← Aegis
+  ['#7FA9C9', '#3F6E90'],  //  9 cornflower
+  ['#D7B25C', '#9A7A2A'],  // 10 gold        ← Elysium
+  ['#79B0BC', '#3E7A86'],  // 11 ice
+  ['#7E97C4', '#42588E'],  // 12 periwinkle
+  ['#9A86C0', '#5E4A86'],  // 13 lavender
+  ['#9B73A8', '#5E3E6E'],  // 14 plum        ← Caelum
+  ['#C586A0', '#8A4A64'],  // 15 mauve
+  ['#C56B6B', '#8A3A3A'],  // 16 clay        ← Fenix
 ]
 function planetColorPair(codex: number): [string, string] {
   return COLOR_PALETTE[codex % COLOR_PALETTE.length]
@@ -41,32 +46,11 @@ function planetColor(codex: number): string {
   return planetColorPair(codex)[0]
 }
 
-// ─── Deterministic starfield (Park-Miller LCG, no random on render) ──────────
-function seededRng(s0: number) {
-  let s = s0
-  return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646 }
-}
-const _rng = seededRng(7919)
-const STARS_BG = Array.from({ length: 185 }, () => ({
-  x: _rng() * W, y: _rng() * H,
-  r: _rng() * 0.65 + 0.15,
-  o: _rng() * 0.16 + 0.04,
-}))
-const STARS_MID = Array.from({ length: 55 }, () => ({
-  x: _rng() * W, y: _rng() * H,
-  r: _rng() * 0.85 + 0.55,
-  o: _rng() * 0.20 + 0.12,
-}))
-const STARS_HI = Array.from({ length: 20 }, () => ({
-  x: _rng() * W, y: _rng() * H,
-  r: _rng() * 1.3 + 1.2,
-  o: _rng() * 0.28 + 0.55,
-  dur: _rng() * 2.5 + 1.5,
-}))
+// (Starfield removed for the paper theme — the page background is graph paper.)
 
 // ─── Visual helpers ───────────────────────────────────────────────────────────
 function planetPx(radius_km: number): number {
-  return Math.max(12, Math.min(42, radius_km * 0.006))
+  return Math.max(15, Math.min(46, radius_km * 0.006))
 }
 function atmoPx(radius_km: number, atmo_km: number): number {
   return planetPx(radius_km) + Math.max(7, atmo_km * 0.004)
@@ -369,6 +353,7 @@ export function SceneCanvas() {
 
   // ── Kill-mode handlers ─────────────────────────────────────────────────────
   const handlePlanetClick = useCallback(async (id: string) => {
+    if (dragged.current) return          // a pan drag, not a click
     if (!killMode || !snapshot) return
     const node = snapshot.nodes.find(n => n.id === id)
     if (!node) return
@@ -377,6 +362,7 @@ export function SceneCanvas() {
   }, [killMode, snapshot, setSnapshot])
 
   const handleLinkClick = useCallback(async (a: string, b: string) => {
+    if (dragged.current) return          // a pan drag, not a click
     if (!killMode || !snapshot) return
     const edge = snapshot.edges.find(e => (e.a === a && e.b === b) || (e.a === b && e.b === a))
     if (!edge) return
@@ -384,14 +370,80 @@ export function SceneCanvas() {
     if (next) setSnapshot(next)
   }, [killMode, snapshot, setSnapshot])
 
+  // ── Zoom + pan (viewBox-driven) ─────────────────────────────────────────────
+  const [view, setView] = useState({ x: 0, y: 0, w: W, h: H })
+  const panning = useRef<{ cx: number; cy: number; vx: number; vy: number; scale: number } | null>(null)
+  const dragged = useRef(false)
+
+  const clientToUser = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current
+    const ctm = svg?.getScreenCTM()
+    if (!svg || !ctm) return { x: CX, y: CY }
+    const p = svg.createSVGPoint()
+    p.x = clientX; p.y = clientY
+    const u = p.matrixTransform(ctm.inverse())
+    return { x: u.x, y: u.y }
+  }, [])
+
+  const clampView = useCallback((v: { x: number; y: number; w: number; h: number }) => {
+    const w = Math.min(Math.max(v.w, MIN_VIEW_W), W)
+    const h = Math.min(Math.max(v.h, MIN_VIEW_H), H)
+    return {
+      x: Math.min(Math.max(v.x, 0), W - w),
+      y: Math.min(Math.max(v.y, 0), H - h),
+      w, h,
+    }
+  }, [])
+
+  const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
+    const a = clientToUser(e.clientX, e.clientY)
+    setView(v => {
+      const factor = e.deltaY < 0 ? 0.85 : 1 / 0.85
+      const nw = Math.min(Math.max(v.w * factor, MIN_VIEW_W), W)
+      const nh = nw * (H / W)
+      const ux = (a.x - v.x) / v.w
+      const uy = (a.y - v.y) / v.h
+      return clampView({ x: a.x - ux * nw, y: a.y - uy * nh, w: nw, h: nh })
+    })
+  }, [clientToUser, clampView])
+
+  const zoomByButton = useCallback((dir: 1 | -1) => {
+    setView(v => {
+      const factor = dir > 0 ? 0.8 : 1 / 0.8
+      const nw = Math.min(Math.max(v.w * factor, MIN_VIEW_W), W)
+      const nh = nw * (H / W)
+      const cxw = v.x + v.w / 2, cyw = v.y + v.h / 2
+      return clampView({ x: cxw - nw / 2, y: cyw - nh / 2, w: nw, h: nh })
+    })
+  }, [clampView])
+
+  const resetView = useCallback(() => setView({ x: 0, y: 0, w: W, h: H }), [])
+
+  const onPointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return
+    const ctm = svgRef.current?.getScreenCTM()
+    panning.current = { cx: e.clientX, cy: e.clientY, vx: view.x, vy: view.y, scale: ctm ? ctm.a : 1 }
+    dragged.current = false
+  }, [view.x, view.y])
+
+  const onPointerMove = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    const p = panning.current
+    if (!p) return
+    const dx = e.clientX - p.cx, dy = e.clientY - p.cy
+    if (Math.abs(dx) + Math.abs(dy) > 3) dragged.current = true
+    const s = p.scale || 1
+    setView(v => clampView({ ...v, x: p.vx - dx / s, y: p.vy - dy / s }))
+  }, [clampView])
+
+  const endPan = useCallback(() => { panning.current = null }, [])
+
   // ── Empty state ────────────────────────────────────────────────────────────
   if (!snapshot) {
     return (
       <div style={{ width: '100%', height: '100%', background: COLORS.VOID_BLACK,
         display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: "'Orbitron', sans-serif", color: COLORS.TEXT_DIM,
-          fontSize: '12px', letterSpacing: '0.2em' }}>
-          [ CONNECTING TO ZETA-26 ]
+        <span style={{ color: COLORS.TEXT_DIM, fontSize: '16px' }}>
+          Loading the map...
         </span>
       </div>
     )
@@ -399,11 +451,20 @@ export function SceneCanvas() {
 
   // ─── SVG render ─────────────────────────────────────────────────────────────
   return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ width: '100%', height: '100%', display: 'block', background: COLORS.VOID_BLACK }}
-      cursor={killMode ? 'crosshair' : 'default'}
+      viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+      preserveAspectRatio="xMidYMid meet"
+      onWheel={handleWheel}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endPan}
+      onPointerLeave={endPan}
+      style={{
+        width: '100%', height: '100%', display: 'block', background: 'transparent',
+        cursor: killMode ? 'crosshair' : 'grab', touchAction: 'none',
+      }}
     >
       <defs>
         {/* Glow filters — multiple strengths */}
@@ -428,6 +489,13 @@ export function SceneCanvas() {
           <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
 
+        {/* Hand-drawn wobble: displace edges with fractal noise so straight
+            lines read as sketched pen strokes rather than ruler-straight. */}
+        <filter id="sketch" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.016" numOctaves="2" seed="7" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.6" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+
         {/* Planet sphere gradients — generated from actual snapshot codexes (fully dynamic) */}
         {Array.from(new Set((snapshot?.nodes ?? []).map(n => n.codex))).map(codex => {
           const [light, dark] = planetColorPair(codex)
@@ -447,36 +515,11 @@ export function SceneCanvas() {
         </pattern>
       </defs>
 
-      {/* ── Subtle grid ───────────────────────────────────────────────────── */}
-      <g opacity="0.045" stroke={COLORS.STEEL} strokeWidth="0.35">
-        {Array.from({ length: Math.ceil(W / 50) + 1 }, (_, i) => (
-          <line key={`gv${i}`} x1={i * 50} y1={0} x2={i * 50} y2={H} />
-        ))}
-        {Array.from({ length: Math.ceil(H / 50) + 1 }, (_, i) => (
-          <line key={`gh${i}`} x1={0} y1={i * 50} x2={W} y2={i * 50} />
-        ))}
-      </g>
+      {/* Graph paper comes from the page background. Everything drawn below is
+          wrapped in the displacement filter so it wobbles like pen on paper. */}
+      <g filter="url(#sketch)">
 
-      {/* ── Starfield ─────────────────────────────────────────────────────── */}
-      <g>
-        {STARS_BG.map((s, i) => (
-          <circle key={`sb${i}`} cx={s.x} cy={s.y} r={s.r} fill="white" opacity={s.o} />
-        ))}
-        {STARS_MID.map((s, i) => (
-          <circle key={`sm${i}`} cx={s.x} cy={s.y} r={s.r} fill="white" opacity={s.o} />
-        ))}
-        {STARS_HI.map((s, i) => (
-          <circle
-            key={`sh${i}`} cx={s.x} cy={s.y} r={s.r}
-            fill="white" opacity={s.o}
-            filter="url(#star-hi)"
-            className="star-twinkle"
-            style={{ '--twinkle-dur': `${s.dur}s` } as React.CSSProperties}
-          />
-        ))}
-      </g>
-
-      {/* ── Radar rings ───────────────────────────────────────────────────── */}
+      {/* ── Range rings (faint pencil compass) ────────────────────────────── */}
       {[80, 165, 255, 345, 425].map(r => (
         <circle key={r} cx={CX} cy={CY} r={r}
           fill="none" stroke={COLORS.STEEL} strokeWidth="0.5" opacity="0.09"
@@ -559,6 +602,7 @@ export function SceneCanvas() {
         const inRoute = route?.path?.includes(node.id) ?? false
         const alive   = node.alive
         const color   = planetColor(node.codex)
+        const shade   = planetColorPair(node.codex)[1]
 
         return (
           <g key={node.id}
@@ -605,16 +649,18 @@ export function SceneCanvas() {
               />
             )}
 
-            {/* Planet body */}
+            {/* Planet body — flat crayon fill, ink outline, soft pencil shading */}
             {alive ? (
-              <circle cx={cx} cy={cy} r={pr}
-                fill={`url(#pg-${node.codex})`}
-                filter={inRoute ? 'url(#glow)' : 'url(#glow-sm)'}
-              />
+              <>
+                <circle cx={cx} cy={cy} r={pr}
+                  fill={color} stroke={COLORS.TEXT_HI} strokeWidth={inRoute ? 2.6 : 2} />
+                <circle cx={cx + pr * 0.28} cy={cy + pr * 0.28} r={pr * 0.6}
+                  fill={shade} opacity="0.16" />
+              </>
             ) : (
               <>
                 <circle cx={cx} cy={cy} r={pr}
-                  fill={COLORS.STEEL} opacity="0.2" />
+                  fill="#FBF5E6" stroke={COLORS.MAGENTA} strokeWidth="2" />
                 <circle cx={cx} cy={cy} r={pr}
                   fill="url(#hatch)" />
               </>
@@ -651,14 +697,16 @@ export function SceneCanvas() {
                     opacity={alive ? (isActive ? 1 : 0.72) : 0.2}
                     filter={isActive ? 'url(#glow-sm)' : undefined}
                   />
-                  {/* Label */}
-                  <text x={lx} y={ly}
-                    textAnchor="middle" dominantBaseline="middle"
-                    fontFamily="'JetBrains Mono', monospace"
-                    fontSize="6"
-                    fill={isActive ? color : (alive ? `${color}99` : COLORS.STEEL)}
-                    opacity={isActive ? 0.9 : 0.35}
-                  >T{k + 1}</text>
+                  {/* Label — decluttered: only when active or zoomed in */}
+                  {(isActive || view.w < W * 0.55) && (
+                    <text x={lx} y={ly}
+                      textAnchor="middle" dominantBaseline="middle"
+                      fontFamily="'JetBrains Mono', monospace"
+                      fontSize="7.5"
+                      fill={isActive ? color : (alive ? `${color}99` : COLORS.STEEL)}
+                      opacity={isActive ? 0.95 : 0.4}
+                    >T{k + 1}</text>
+                  )}
                 </g>
               )
             })}
@@ -667,7 +715,7 @@ export function SceneCanvas() {
             <text x={cx} y={cy - ar - 7}
               textAnchor="middle"
               fontFamily="'Orbitron', sans-serif"
-              fontSize="10" fontWeight="700" letterSpacing="2"
+              fontSize="12" fontWeight="700" letterSpacing="2"
               fill={alive ? color : COLORS.TEXT_DIM}
               filter={inRoute && alive ? 'url(#glow-xs)' : undefined}
             >
@@ -677,8 +725,8 @@ export function SceneCanvas() {
             <text x={cx} y={cy - ar - 20}
               textAnchor="middle"
               fontFamily="'JetBrains Mono', monospace"
-              fontSize="7" letterSpacing="0.04em"
-              fill={COLORS.TEXT_DIM} opacity="0.6"
+              fontSize="9" letterSpacing="0.04em"
+              fill={COLORS.TEXT_DIM} opacity="0.65"
             >
               BASE-{node.codex}
             </text>
@@ -687,6 +735,8 @@ export function SceneCanvas() {
       })}
 
       {/* ── Packet (all DOM-mutated, no React re-renders per frame) ─────── */}
+      </g>{/* end hand-drawn sketch group */}
+
       {/* Trail */}
       {Array.from({ length: TRAIL_LEN }, (_, i) => (
         <circle key={`trail-${i}`}
@@ -710,8 +760,8 @@ export function SceneCanvas() {
       />
       {/* HUD label */}
       <rect ref={packetLabelRef} x={-1000} y={-1000} width={52} height={15}
-        rx={2} fill="rgba(5,6,10,0.9)"
-        stroke={COLORS.CYAN} strokeWidth="0.75"
+        rx={3} fill="#FBF5E6"
+        stroke={COLORS.TEXT_HI} strokeWidth="1"
       />
       <text ref={packetTextRef} x={-1000} y={-1000}
         textAnchor="middle"
@@ -720,5 +770,18 @@ export function SceneCanvas() {
         fill={COLORS.CYAN}
       />
     </svg>
+
+    {/* Zoom / pan controls */}
+    <div className="map-controls">
+      <button className="map-btn" title="Zoom in" aria-label="Zoom in"
+        onClick={() => zoomByButton(1)}><span>+</span></button>
+      <button className="map-btn" title="Zoom out" aria-label="Zoom out"
+        onClick={() => zoomByButton(-1)}><span>&#8211;</span></button>
+      <button className="map-btn" title="Reset view" aria-label="Reset view"
+        onClick={resetView}>
+        <span style={{ fontFamily: "'Orbitron', sans-serif", fontSize: '7px', fontWeight: 700 }}>FIT</span>
+      </button>
+    </div>
+    </div>
   )
 }
