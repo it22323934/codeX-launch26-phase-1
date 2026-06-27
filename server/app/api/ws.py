@@ -1,59 +1,73 @@
-"""WebSocket broadcast: push topology/route updates to every connected client.
-
-The :class:`ConnectionManager` is the single fan-out point. ``routes.py``
-mutates the universe then calls ``manager.broadcast(...)``; on connect, a client
-immediately receives the current topology so it can render without a REST round
-trip. Message shapes:
-
-    {"type": "topology", "snapshot": <universe snapshot>}
-    {"type": "route",    "result":   <route result>}
 """
+WebSocket connection manager.
+
+Broadcasts topology and route updates to all connected clients when the
+universe topology changes.
+
+Message types pushed to clients:
+  {"type": "topology", "snapshot": <UniverseSnapshot dict>}
+  {"type": "route",    "result":   <RouteResponse dict>}
+"""
+
 from __future__ import annotations
 
-from fastapi import WebSocket, WebSocketDisconnect
+import json
+import asyncio
+from typing import TYPE_CHECKING
+
+from fastapi import WebSocket
+
+if TYPE_CHECKING:
+    from engine.universe import Universe
+    from engine.constants import Constants
 
 
 class ConnectionManager:
-    """Tracks open sockets and fans messages out to all of them."""
-
     def __init__(self) -> None:
         self.active: set[WebSocket] = set()
+        # Stores the last route request so it can be recomputed on topology change.
+        self.last_route_request: dict | None = None  # {origin, destination, payload}
 
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self.active.add(websocket)
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self.active.add(ws)
 
-    def disconnect(self, websocket: WebSocket) -> None:
-        self.active.discard(websocket)
+    def disconnect(self, ws: WebSocket) -> None:
+        self.active.discard(ws)
 
-    async def broadcast(self, message: dict) -> None:
-        """Send ``message`` to every live socket; drop any that error out."""
-        dead: list[WebSocket] = []
-        for websocket in list(self.active):
+    async def broadcast(self, data: dict) -> None:
+        """Send JSON to all connected clients; silently drop dead connections."""
+        message = json.dumps(data)
+        dead: set[WebSocket] = set()
+        for ws in list(self.active):
             try:
-                await websocket.send_json(message)
-            except Exception:  # client vanished mid-send; prune it
-                dead.append(websocket)
-        for websocket in dead:
-            self.disconnect(websocket)
+                await ws.send_text(message)
+            except Exception:
+                dead.add(ws)
+        self.active -= dead
 
+    async def broadcast_topology(self, universe: "Universe", constants: "Constants") -> None:
+        """Broadcast current topology snapshot to all clients."""
+        await self.broadcast({"type": "topology", "snapshot": universe.snapshot()})
 
-# Module-level singleton shared with the REST routes.
-manager = ConnectionManager()
-
-
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    """Accept a client, send it the current topology, then keep the socket open.
-
-    Inbound frames are ignored (the protocol is server→client push only); the
-    loop exists purely to detect disconnects.
-    """
-    await manager.connect(websocket)
-    try:
-        await websocket.send_json(
-            {"type": "topology", "snapshot": websocket.app.state.universe.snapshot()}
+    async def broadcast_reroute(
+        self,
+        universe: "Universe",
+        constants: "Constants",
+        router_fn,
+    ) -> None:
+        """Recompute the last stored route and broadcast the result."""
+        if self.last_route_request is None:
+            return
+        req = self.last_route_request
+        result = router_fn(
+            req["origin"],
+            req["destination"],
+            req["payload"],
+            universe,
+            constants,
         )
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await self.broadcast({"type": "route", "result": result})
+
+
+manager = ConnectionManager()

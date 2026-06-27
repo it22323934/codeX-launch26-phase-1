@@ -1,90 +1,92 @@
-# Relic Ring Protocol — Backend (Python Math Engine + API)
+# Relic Ring Protocol — Server
 
-Simulates an interplanetary routing network from a `universe-config.json`:
-computes lowest-latency routes with full physics, translates payloads between
-planetary number-base "codices", and survives node/link failures.
-
-> **Scaffold status.** This is a structured scaffold, not the finished engine.
-> The pure layers are implemented and tested; the graded *composition* layers
-> are precise, documented stubs. See [Implementation status](#implementation-status).
+Python FastAPI backend for the Relic Ring Protocol hackathon project.
 
 ## Setup
 
 ```bash
 cd server
-python -m venv .venv && . .venv/Scripts/activate    # Windows (Git Bash)
-# or:  source .venv/bin/activate                    # macOS/Linux
 pip install -e ".[dev]"
 ```
 
 ## Run
 
 ```bash
-uvicorn app.main:app --reload          # serves on http://localhost:8000
-curl http://localhost:8000/health      # {"ok": true, "config": ".../universe-config.json"}
-curl http://localhost:8000/api/universe
+uvicorn app.main:app --reload --port 8000
 ```
 
-Point the server at a different universe with the `RELIC_CONFIG` env var:
+Or set a custom config path:
 
 ```bash
-RELIC_CONFIG=/path/to/other-universe.json uvicorn app.main:app
+RELIC_CONFIG=/path/to/custom.json uvicorn app.main:app --reload --port 8000
 ```
 
-## Test
+## Run Tests
 
 ```bash
-pytest            # test_codex.py passes; test_latency/test_router xfail until implemented
+pytest tests/ -v
 ```
 
 ## API
 
-| Method | Route | Body | Returns |
-|--------|-------|------|---------|
-| GET  | `/api/universe` | — | enriched snapshot (nodes + tower world coords + edges + constants) |
-| POST | `/api/universe` | config json | snapshot (replaces the live universe) |
-| POST | `/api/route` | `{origin, destination, payload}` | route result *(501 until router implemented)* |
-| POST | `/api/nodes/{id}/toggle` | `{alive?}` | snapshot (omit `alive` to flip) |
-| POST | `/api/links/toggle` | `{a, b, alive?}` | snapshot |
-| POST | `/api/reset` | — | snapshot (revive all) |
-| WS   | `/ws` | — | pushes `{type:"topology",snapshot}` on every kill/revive |
-| GET  | `/health` | — | `{ok:true, config:<path>}` |
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/health` | Server health + config path |
+| GET | `/api/universe` | Full topology snapshot with tower coords |
+| POST | `/api/universe` | Replace universe from JSON body |
+| POST | `/api/route` | Compute lowest-latency route |
+| POST | `/api/nodes/{id}/toggle` | Toggle node alive state |
+| POST | `/api/links/toggle` | Toggle link alive state |
+| POST | `/api/reset` | Revive all nodes and links |
+| WS | `/ws` | Push topology/route updates on changes |
 
-## Implementation status
+## Constant Justification
 
-| Module | State | Notes |
-|--------|-------|-------|
-| `engine/constants.py` | `[ DONE ]` | Defaults + `resolve_constants()` merge. The single source of truth. |
-| `engine/models.py` | `[ DONE ]` | Strict Pydantic v2 validation of the node schema. |
-| `engine/codex.py` | `[ DONE ]` | Base 2–36 encode/decode; `test_codex.py` green. |
-| `engine/geometry.py` | `[ DONE ]` | Centers, tower placement, void distance, fiber arcs. |
-| `engine/universe.py` | `[ DONE ]` | Load/validate, failure state, neighbours, topology, snapshot. |
-| `app/*` (API + WS) | `[ DONE ]` | Universe load, snapshot, toggles, reset, WS topology broadcast. |
-| `engine/latency.py` | `[ STUB ]` | Four-component model + hop log (M3). See its docstring. |
-| `engine/router.py` | `[ STUB ]` | Dijkstra over `(prev, current)` expanded states (M2/M3 path). |
+Every tunable constant is defined in `engine/constants.py` and overridable via `universe_metadata` in the config JSON.
 
-To finish the engine, implement `latency.py` then `router.py` per
-[`.claude/PROMPT_backend_math_engine.md`](../.claude/PROMPT_backend_math_engine.md),
-then delete the `pytestmark = xfail` lines in `test_latency.py` / `test_router.py`.
+| Constant | Default | Unit | Source / Rationale | Override key |
+|---|---|---|---|---|
+| `SPEED_OF_LIGHT_KMS` | 300,000 | km/s | Spec §B; vacuum c. | `speed_of_light_kms` |
+| `FIBER_SPEED_FRACTION` | 0.67 | dimensionless | Spec §A; ~⅔c for subsurface fiber, typical for glass-core optical cable. | `fiber_speed_fraction` |
+| `TOWER_DELAY_MS` | 7 | ms | Spec §A; fixed processing penalty per tower hit. | `tower_processing_delay_ms` |
+| `LMAX_KM` | 50,000,000 | km | Spec §A; maximum void-hop span; pairs farther apart must relay. | `max_void_hop_distance_km` |
+| `COORDINATE_SCALE_UNIT_KM` | 100,000 | km/unit | Spec §6; converts abstract grid units to real km. `radius_km` and `atmosphere_thickness_km` are already in km and are NOT multiplied by this scale. | `coordinate_scale_unit_km` |
 
-## Constants — assumed values & justification
+## Architecture
 
-All live in `engine/constants.py`, defined once, each overridable per universe
-via `universe_metadata`. No planetary value is hardcoded anywhere else.
+```
+engine/
+  constants.py   — all physical/protocol constants, resolve_constants()
+  models.py      — Pydantic Node, UniverseConfig with strict validation
+  geometry.py    — planet centers, tower positions, void distances, fiber arcs
+  codex.py       — base-N encoding/decoding, translation logs
+  latency.py     — four-component latency formula, hop-by-hop accounting
+  universe.py    — mutable topology (node/link alive flags), Dijkstra-ready graph
+  router.py      — expanded-state Dijkstra over (prev_id, cur_id) pairs
 
-| Constant | Default | Unit | Source | Why this value |
-|----------|---------|------|--------|----------------|
-| `SPEED_OF_LIGHT_KMS` | 300 000 | km/s | spec §B | Vacuum *c*; the denominator of every propagation term. |
-| `FIBER_SPEED_FRACTION` | 0.67 | — | spec §A | Signals crawl at 0.67 *c* along a relay's subsurface fiber arc. Safe range (0, 1]. |
-| `TOWER_DELAY_MS` | 7 | ms | spec §A | Fixed processing penalty per **distinct** tower a packet touches. |
-| `LMAX_KM` | 50 000 000 | km | spec §A | Longest single void hop; farther pairs must relay. |
-| `COORDINATE_SCALE_UNIT_KM` | 100 000 | km/unit | spec §6 | Converts config grid units to km for planet **centers** only — `radius_km` and `atmosphere_thickness_km` are already km and are never scaled. |
+app/
+  config.py      — config path resolution (RELIC_CONFIG env or default)
+  main.py        — FastAPI app, lifespan startup, CORS, /ws, /health
+  api/
+    routes.py    — REST endpoints, live Universe singleton
+    ws.py        — WebSocket connection manager, topology/route broadcast
+    schemas.py   — Pydantic request/response DTOs
+```
 
-### Bundled universe
+## Routing Algorithm
 
-`universe-config.json` is a 5-planet demo (`Aurelia, Bisecta, Cindex, Doppler,
-Echo`) deliberately shaped to exercise routing: `Aurelia`↔`Cindex` exceeds Lmax
-and must relay through **either** `Bisecta` or `Doppler` (so killing one
-reroutes), and `Echo` sits past Lmax behind `Cindex` (so killing `Cindex`
-isolates it → `Undeliverable`). Each planet carries a different `codex` base so
-a route shows real dialect translation at every hop.
+The router uses **Dijkstra over expanded states `(prev_planet_id, cur_planet_id)`** instead of plain node-based Dijkstra.
+
+This is required because the relay cost at a planet depends on:
+1. Which neighbor you came **from** — determines which tower receives the signal (`recv_tower`).
+2. Which neighbor you go **to** next — determines which tower sends the signal (`send_tower`).
+
+If `recv_tower != send_tower`, a fiber arc on the planet surface carries the signal between them, adding fiber latency and an extra tower hit. A plain node-based Dijkstra cannot account for this correctly.
+
+## Latency Components
+
+For each hop `A → B`:
+- **Void**: `L_km / c_kms * 1000` ms
+- **Atmosphere** (both ends): `h * n / c_kms * 1000` ms per shell
+- **Fiber** (relay with different recv/send towers): `arc_km / (fiber_frac * c_kms) * 1000` ms
+- **Tower**: `tower_delay_ms * towers_hit` (1 for origin/destination, 1-2 for relay)
