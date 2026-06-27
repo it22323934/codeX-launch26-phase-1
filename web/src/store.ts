@@ -1,115 +1,112 @@
-// src/store.ts
-//
-// Single zustand store. Components select slices; REST calls and WS messages
-// mutate it. Holds no physics - only fetched results and UI state. The scene
-// re-renders declaratively from this store on every reroute.
-import { create } from "zustand";
+import { create } from 'zustand'
 
-import { api, connectWs } from "./api";
-import type { RouteResult, Snapshot } from "./api";
-import { DEFAULT_PAYLOAD } from "./constants/protocol";
-
-// Drives the StatusBar tag and the boot sequence.
-export type Status = "boot" | "idle" | "transmitting" | "delivered" | "lost";
-
-interface State {
-  snapshot: Snapshot | null;
-  originId: string | null;
-  destinationId: string | null;
-  payload: string;
-  route: RouteResult | null;
-  killMode: boolean;
-  status: Status;
-  error: string | null;
-  // Bumped to Date.now() to fire a one-shot glitch flicker on a state change
-  // (node death, route failure). Components watch this value.
-  glitchAt: number;
-
-  init: () => void;
-  setOrigin: (id: string) => void;
-  setDestination: (id: string) => void;
-  setPayload: (p: string) => void;
-  toggleKillMode: () => void;
-  transmit: () => Promise<void>;
-  reset: () => Promise<void>;
-  killNode: (id: string) => Promise<void>;
-  killLink: (a: string, b: string) => Promise<void>;
+export interface TowerPosition {
+  x: number
+  y: number
+  index: number
 }
 
-export const useStore = create<State>((set, get) => {
-  // Reflect a route result onto status + glitch in one place.
-  const applyRoute = (result: RouteResult) =>
-    set({
-      route: result,
-      status: result.deliverable ? "delivered" : "lost",
-      glitchAt: result.deliverable ? get().glitchAt : Date.now(),
-    });
+export interface Node {
+  id: string
+  codex: number
+  x: number
+  y: number
+  radius_km: number
+  active_towers: number
+  atmosphere_thickness_km: number
+  refraction_index: number
+  alive: boolean
+  tower_positions: TowerPosition[]
+}
 
-  return {
-    snapshot: null,
-    originId: null,
-    destinationId: null,
-    payload: DEFAULT_PAYLOAD,
-    route: null,
-    killMode: false,
-    status: "boot",
-    error: null,
-    glitchAt: 0,
+export interface Edge {
+  a: string
+  b: string
+  void_km: number
+  alive: boolean
+}
 
-    init: () => {
-      api
-        .getUniverse()
-        .then((snapshot) => {
-          const ids = snapshot.nodes.map((n) => n.id);
-          set({
-            snapshot,
-            status: "idle",
-            error: null,
-            originId: get().originId ?? ids[0] ?? null,
-            destinationId: get().destinationId ?? ids[ids.length - 1] ?? null,
-          });
-        })
-        .catch((e) => set({ error: String(e) }));
+export interface Snapshot {
+  nodes: Node[]
+  edges: Edge[]
+}
 
-      // The backend pushes topology on every kill/revive, and (once the router
-      // is implemented) a fresh route when one is active - no page reload.
-      connectWs((msg) => {
-        if (msg.type === "topology") set({ snapshot: msg.snapshot });
-        else if (msg.type === "route") applyRoute(msg.result);
-      });
-    },
+export interface LatencyBreakdown {
+  void_ms: number
+  atmosphere_ms: number
+  fiber_ms: number
+  tower_ms: number
+  total_ms: number
+}
 
-    setOrigin: (id) => set({ originId: id }),
-    setDestination: (id) => set({ destinationId: id }),
-    setPayload: (p) => set({ payload: p }),
-    toggleKillMode: () => set((s) => ({ killMode: !s.killMode })),
+export interface HopEntry {
+  planet: string
+  role: string
+  recv_tower: number | null
+  send_tower: number | null
+  towers_hit: number
+  fiber_ms: number
+  void_km: number
+  void_ms: number
+}
 
-    transmit: async () => {
-      const { originId, destinationId, payload } = get();
-      if (!originId || !destinationId) return;
-      set({ status: "transmitting", error: null });
-      try {
-        applyRoute(await api.postRoute(originId, destinationId, payload));
-      } catch (e) {
-        // The backend router may still be a scaffold stub (HTTP 501). Surface
-        // it on the HUD instead of throwing into the void.
-        set({ status: "lost", error: String(e), route: null, glitchAt: Date.now() });
-      }
-    },
+export interface TranslationEntry {
+  planet: string
+  codex: number
+  received_digits: number[] | null
+  ascii: string | null
+  sent_digits: number[] | null
+  binary_stream: string | null
+}
 
-    reset: async () => {
-      const snapshot = await api.reset();
-      set({ snapshot, route: null, status: "idle", error: null });
-    },
+export interface RouteResult {
+  deliverable: boolean
+  reason?: string
+  origin_id?: string
+  destination_id?: string
+  payload?: string
+  path?: string[]
+  latency?: LatencyBreakdown
+  hop_log?: HopEntry[]
+  translation?: TranslationEntry[]
+}
 
-    killNode: async (id) => {
-      const snapshot = await api.toggleNode(id);
-      set({ snapshot, glitchAt: Date.now() });
-    },
+interface Store {
+  snapshot: Snapshot | null
+  originId: string
+  destinationId: string
+  payload: string
+  route: RouteResult | null
+  killMode: boolean
+  animating: boolean
+  booted: boolean
 
-    killLink: async (a, b) => {
-      const snapshot = await api.toggleLink(a, b);
-      set({ snapshot, glitchAt: Date.now() });
-    },
-  };
-});
+  setSnapshot: (s: Snapshot) => void
+  setOriginId: (id: string) => void
+  setDestinationId: (id: string) => void
+  setPayload: (p: string) => void
+  setRoute: (r: RouteResult | null) => void
+  setKillMode: (k: boolean) => void
+  setAnimating: (a: boolean) => void
+  setBooted: (b: boolean) => void
+}
+
+export const useStore = create<Store>()(set => ({
+  snapshot: null,
+  originId: '',
+  destinationId: '',
+  payload: 'Hello world',
+  route: null,
+  killMode: false,
+  animating: false,
+  booted: false,
+
+  setSnapshot:     (s) => set({ snapshot: s }),
+  setOriginId:     (id) => set({ originId: id }),
+  setDestinationId:(id) => set({ destinationId: id }),
+  setPayload:      (p) => set({ payload: p }),
+  setRoute:        (r) => set({ route: r }),
+  setKillMode:     (k) => set({ killMode: k }),
+  setAnimating:    (a) => set({ animating: a }),
+  setBooted:       (b) => set({ booted: b }),
+}))

@@ -1,52 +1,57 @@
-"""FastAPI entrypoint: load the universe, mount the API + WebSocket, expose health.
-
-Run with::
-
-    uvicorn app.main:app --reload     # from the server/ directory
-
-CORS is wide open for local dev (the Vite frontend proxies here). The live
-universe is loaded once at startup into ``app.state`` and mutated in place, so
-node/link failures persist across requests until ``/api/reset``.
 """
-from __future__ import annotations
+Relic Ring Protocol — FastAPI application entry point.
+
+Startup sequence:
+  1. Load default universe-config.json (or RELIC_CONFIG path) into module state.
+  2. Mount REST router at /api/*.
+  3. Expose /health and /ws endpoints directly.
+
+Run with:
+  uvicorn app.main:app --reload --port 8000
+"""
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import router as api_router
-from app.api.ws import websocket_endpoint
-from app.config import config_path, read_config
-from engine.universe import UniverseState
+from app.api.routes import router, load_default_universe
+from app.api.ws import manager
+from app.config import get_config_path
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load the configured universe before serving; expose its path for /health."""
-    path = config_path()
-    app.state.config_path = str(path)
-    app.state.universe = UniverseState.from_config(read_config(path))
-    app.state.active_route = None  # last /api/route request, for live reroute
+    """Load universe on startup."""
+    load_default_universe()
     yield
+    # Nothing to clean up.
 
 
-app = FastAPI(title="Relic Ring Protocol", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Relic Ring Protocol", lifespan=lifespan)
 
-# Permissive CORS for local development (Vite dev server / proxy).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(api_router)
-app.add_api_websocket_route("/ws", websocket_endpoint)
+app.include_router(router)
 
 
 @app.get("/health")
-def health() -> dict:
-    """Liveness probe; reports which config file is loaded."""
-    return {"ok": True, "config": app.state.config_path}
+async def health() -> dict:
+    return {"ok": True, "config": str(get_config_path())}
+
+
+@app.websocket("/ws")
+async def ws_endpoint(websocket: WebSocket) -> None:
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep alive; client messages are ignored (push-only from server)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket)

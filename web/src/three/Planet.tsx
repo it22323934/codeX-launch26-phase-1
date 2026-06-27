@@ -1,89 +1,140 @@
-// src/three/Planet.tsx
-//
-// A planet: emissive sphere body, flat translucent atmosphere shell, equatorial
-// tower ring, and a floating HUD label. In kill mode a click toggles the node;
-// a dead planet desaturates to STEEL and gains a MAGENTA alarm ring.
-import type { ThreeEvent } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
+import { useRef, useState } from 'react'
+import * as THREE from 'three'
+import { Html } from '@react-three/drei'
+import { ThreeEvent } from '@react-three/fiber'
+import { COLORS, SCENE } from '../constants/visual'
+import { Node, useStore } from '../store'
+import { TowerRing } from './TowerRing'
 
-import type { NodeSnapshot } from "../api";
-import { PALETTE, VISUAL } from "../constants/visual";
-import { useStore } from "../store";
-import TowerRing from "./TowerRing";
-import type { ScenePos } from "./Universe";
+interface PlanetProps {
+  node: Node
+  scenePos: [number, number, number]
+  isKillMode: boolean
+  onClick: () => void
+}
 
-export default function Planet({ node, position }: { node: NodeSnapshot; position: ScenePos }) {
-  const killMode = useStore((s) => s.killMode);
-  const killNode = useStore((s) => s.killNode);
-  const route = useStore((s) => s.route);
+export function Planet({ node, scenePos, isKillMode, onClick }: PlanetProps) {
+  const [hovered, setHovered] = useState(false)
+  const meshRef = useRef<THREE.Mesh>(null)
+  const route   = useStore(s => s.route)
 
-  const onRoute = !!route?.deliverable && route.path.includes(node.id);
-  const bodyColor = !node.alive ? PALETTE.STEEL : onRoute ? PALETTE.CYAN : PALETTE.TEXT_HI;
-  const radius = node.radius_km * VISUAL.PLANET_RADIUS_SCALE;
-  const atmoRadius =
-    (node.radius_km + node.atmosphere_thickness_km) * VISUAL.PLANET_RADIUS_SCALE;
+  const planetR = (node.radius_km ?? 1000) * SCENE.PLANET_RADIUS_SCALE
+  const atmoR   = planetR + (node.atmosphere_thickness_km ?? 200) * SCENE.PLANET_RADIUS_SCALE
 
-  const handleClick = (e: ThreeEvent<MouseEvent>) => {
-    if (!killMode) return;
-    e.stopPropagation();
-    void killNode(node.id);
-  };
+  const isInRoute = Boolean(route?.path?.includes(node.id))
+  const bodyColor = node.alive
+    ? (isInRoute ? COLORS.CYAN : COLORS.TEXT_HI)
+    : COLORS.STEEL
+
+  const emissiveColor = node.alive
+    ? (isInRoute ? COLORS.CYAN : COLORS.CYAN)
+    : COLORS.MAGENTA
+
+  function handlePointerOver(e: ThreeEvent<PointerEvent>) {
+    e.stopPropagation()
+    setHovered(true)
+    if (isKillMode) document.body.style.cursor = 'crosshair'
+  }
+
+  function handlePointerOut() {
+    setHovered(false)
+    document.body.style.cursor = 'auto'
+  }
+
+  function handleClick(e: ThreeEvent<MouseEvent>) {
+    e.stopPropagation()
+    onClick()
+  }
 
   return (
-    <group position={position}>
+    <group position={scenePos}>
+      {/* Planet body */}
       <mesh
+        ref={meshRef}
         onClick={handleClick}
-        onPointerOver={(e) => {
-          if (killMode) {
-            e.stopPropagation();
-            document.body.style.cursor = "crosshair";
-          }
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = "auto";
-        }}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
       >
-        <sphereGeometry args={[radius, 32, 32]} />
+        <sphereGeometry args={[planetR, 32, 24]} />
         <meshStandardMaterial
           color={bodyColor}
-          emissive={bodyColor}
-          emissiveIntensity={node.alive ? VISUAL.PLANET_EMISSIVE : 0.05}
-          roughness={0.4}
-          metalness={0.1}
+          emissive={emissiveColor}
+          emissiveIntensity={
+            node.alive
+              ? SCENE.PLANET_EMISSIVE_INTENSITY * (hovered ? 1.6 : 1.0)
+              : 0.4
+          }
+          roughness={0.6}
+          metalness={0.3}
         />
       </mesh>
 
-      {/* Atmosphere: larger flat translucent sphere (never a gradient). */}
+      {/* Atmosphere shell */}
       <mesh>
-        <sphereGeometry args={[atmoRadius, 32, 32]} />
-        <meshBasicMaterial
-          color={node.alive ? PALETTE.CYAN : PALETTE.STEEL}
+        <sphereGeometry args={[atmoR, 32, 24]} />
+        <meshStandardMaterial
+          color={node.alive ? SCENE.ATMOSPHERE_COLOR : COLORS.MAGENTA}
           transparent
-          opacity={VISUAL.ATMOSPHERE_OPACITY}
+          opacity={node.alive ? SCENE.ATMOSPHERE_OPACITY : 0.08}
+          side={THREE.BackSide}
           depthWrite={false}
         />
       </mesh>
 
-      {/* Alarm ring on a killed planet. */}
+      {/* Dead alarm ring */}
       {!node.alive && (
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[atmoRadius * 1.15, atmoRadius * 0.03, 8, 48]} />
-          <meshStandardMaterial
-            color={PALETTE.MAGENTA}
-            emissive={PALETTE.MAGENTA}
-            emissiveIntensity={1.6}
+        <mesh rotation={[0, 0, 0]}>
+          <ringGeometry args={[atmoR * 1.05, atmoR * 1.12, 48]} />
+          <meshBasicMaterial
+            color={COLORS.MAGENTA}
+            transparent
+            opacity={0.6}
+            side={THREE.DoubleSide}
+            depthWrite={false}
           />
         </mesh>
       )}
 
-      <TowerRing node={node} radius={radius} />
+      {/* Kill-mode hover ring */}
+      {isKillMode && hovered && (
+        <mesh rotation={[0, 0, 0]}>
+          <ringGeometry args={[atmoR * 1.1, atmoR * 1.18, 48]} />
+          <meshBasicMaterial
+            color={COLORS.MAGENTA}
+            transparent
+            opacity={0.85}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
 
-      <Html center distanceFactor={18} position={[0, atmoRadius + 0.5, 0]}>
-        <div className={`planet-label ${node.alive ? "" : "planet-label--dead"}`}>
-          <span className="planet-label__id">{node.id}</span>
-          <span className="planet-label__codex">BASE {node.codex}</span>
+      {/* Tower ring */}
+      <TowerRing node={node} planetRadius={planetR} />
+
+      {/* Label */}
+      <Html
+        center
+        position={[0, atmoR + 0.15, 0]}
+        style={{ pointerEvents: 'none' }}
+      >
+        <div
+          style={{
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: '9px',
+            fontWeight: 700,
+            color: node.alive ? COLORS.CYAN : COLORS.MAGENTA,
+            letterSpacing: '0.1em',
+            whiteSpace: 'nowrap',
+            textShadow: node.alive
+              ? `0 0 6px ${COLORS.CYAN}`
+              : `0 0 6px ${COLORS.MAGENTA}`,
+            userSelect: 'none',
+          }}
+        >
+          {node.id.toUpperCase()}
         </div>
       </Html>
     </group>
-  );
+  )
 }

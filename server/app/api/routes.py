@@ -1,115 +1,152 @@
-"""REST endpoints. One live :class:`UniverseState` lives in ``app.state`` so
-failure state persists across requests; topology changes are pushed over the
-WebSocket. Validation errors become clean 4xx responses — the engine never
-crashes the process.
 """
+REST API routes for the Relic Ring Protocol server.
+
+Endpoints
+---------
+GET  /api/universe             — enriched topology snapshot
+POST /api/universe             — replace universe from new config JSON
+POST /api/route                — compute lowest-latency route
+POST /api/nodes/{id}/toggle    — toggle or force-set a node's alive state
+POST /api/links/toggle         — toggle or force-set a link's alive state
+POST /api/reset                — revive all nodes and links
+"""
+
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, HTTPException, Request
-from pydantic import ValidationError
+import json
+from pathlib import Path
+from typing import Any
 
-from app.api import ws
-from app.api.schemas import LinkToggle, NodeToggle, RouteRequest
-from engine import router as routing
-from engine.universe import UniverseState
+from fastapi import APIRouter, HTTPException, Body
+
+from engine.models import UniverseConfig
+from engine.universe import Universe
+from engine.constants import resolve_constants
+from engine.router import find_route
+from app.api.schemas import RouteRequest, ToggleNodeRequest, ToggleLinkRequest
+from app.api.ws import manager
+from app.config import get_config_path
 
 router = APIRouter(prefix="/api")
 
+# ---------------------------------------------------------------------------
+# Module-level live universe state
+# ---------------------------------------------------------------------------
 
-def _universe(request: Request) -> UniverseState:
-    return request.app.state.universe
+_universe: Universe | None = None
 
 
-async def _broadcast(request: Request) -> dict:
-    """Push topology to all clients and, if a route is active, re-route live.
+def get_universe() -> Universe:
+    if _universe is None:
+        raise HTTPException(status_code=500, detail="Universe not loaded")
+    return _universe
 
-    Returns the fresh snapshot so the calling HTTP handler can return it too.
-    The route recompute is guarded: until ``engine.router`` is implemented it
-    raises ``NotImplementedError``, which we swallow so toggles still succeed.
-    """
-    uni = _universe(request)
-    snapshot = uni.snapshot()
-    await ws.manager.broadcast({"type": "topology", "snapshot": snapshot})
 
-    active = getattr(request.app.state, "active_route", None)
-    if active:
-        try:
-            result = routing.find_route(
-                uni, active["origin"], active["destination"], active["payload"]
-            )
-            await ws.manager.broadcast({"type": "route", "result": result})
-        except (NotImplementedError, KeyError):
-            pass  # router stub / stale ids — topology was still pushed
-    return snapshot
+def _make_universe(data: dict) -> Universe:
+    config = UniverseConfig(**data)
+    constants = resolve_constants(config.universe_metadata)
+    return Universe(config, constants)
+
+
+def load_default_universe() -> None:
+    """Called on startup to load the config from disk."""
+    global _universe
+    path = get_config_path()
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    _universe = _make_universe(data)
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 
 @router.get("/universe")
-def get_universe(request: Request) -> dict:
-    """Enriched snapshot of the current universe (M1)."""
-    return _universe(request).snapshot()
+async def api_get_universe() -> dict:
+    """Return the enriched universe snapshot (nodes with tower coords + edges)."""
+    return get_universe().snapshot()
 
 
 @router.post("/universe")
-def replace_universe(request: Request, config: dict = Body(...)) -> dict:
-    """Replace the live universe with a posted config; revives all failures."""
+async def api_post_universe(body: dict = Body(...)) -> dict:
+    """Replace the current universe from a new config JSON body."""
+    global _universe
     try:
-        request.app.state.universe = UniverseState.from_config(config)
-    except (ValidationError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=f"invalid config: {exc}")
-    request.app.state.active_route = None
-    return request.app.state.universe.snapshot()
+        _universe = _make_universe(body)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    snap = _universe.snapshot()
+    await manager.broadcast_topology(_universe, _universe.constants)
+    return snap
 
 
 @router.post("/route")
-def post_route(request: Request, body: RouteRequest) -> dict:
-    """Compute the lowest-latency route for a payload (M2/M3)."""
-    uni = _universe(request)
-    if body.origin not in uni.nodes or body.destination not in uni.nodes:
-        raise HTTPException(status_code=400, detail="unknown origin/destination id")
-    request.app.state.active_route = body.model_dump()
-    try:
-        return routing.find_route(uni, body.origin, body.destination, body.payload)
-    except NotImplementedError as exc:
-        # Scaffold: router not implemented yet. Fill engine/router.py to enable.
-        raise HTTPException(status_code=501, detail=str(exc))
+async def api_route(req: RouteRequest) -> dict:
+    """Compute the lowest-latency route and return hop-by-hop details."""
+    u = get_universe()
+    # Store for re-broadcast on future topology changes
+    manager.last_route_request = {
+        "origin": req.origin,
+        "destination": req.destination,
+        "payload": req.payload,
+    }
+    result = find_route(req.origin, req.destination, req.payload, u, u.constants)
+    return result
 
 
 @router.post("/nodes/{node_id}/toggle")
-async def toggle_node(
-    request: Request, node_id: str, body: NodeToggle | None = Body(default=None)
-) -> dict:
-    """Kill or revive a planet, then broadcast the new topology (M4)."""
-    uni = _universe(request)
-    if node_id not in uni.nodes:
-        raise HTTPException(status_code=404, detail=f"unknown node id: {node_id}")
-    alive = (
-        body.alive if body and body.alive is not None else not uni.is_node_alive(node_id)
-    )
-    uni.set_node_alive(node_id, alive)
-    return await _broadcast(request)
+async def api_toggle_node(node_id: str, req: ToggleNodeRequest) -> dict:
+    """Toggle or force-set a node's alive state, then broadcast."""
+    u = get_universe()
+    node_ids = {n.id for n in u.config.nodes}
+    if node_id not in node_ids:
+        raise HTTPException(status_code=404, detail=f"Node {node_id!r} not found")
+
+    if req.alive is None:
+        # Flip
+        new_alive = not u.is_node_alive(node_id)
+    else:
+        new_alive = req.alive
+
+    u.set_node_alive(node_id, new_alive)
+    snap = u.snapshot()
+    await manager.broadcast_topology(u, u.constants)
+    if manager.last_route_request:
+        await manager.broadcast_reroute(u, u.constants, find_route)
+    return snap
 
 
 @router.post("/links/toggle")
-async def toggle_link(
-    request: Request, body: LinkToggle = Body(...)
-) -> dict:
-    """Kill or revive a link between two planets, then broadcast (M4)."""
-    uni = _universe(request)
-    for nid in (body.a, body.b):
-        if nid not in uni.nodes:
-            raise HTTPException(status_code=404, detail=f"unknown node id: {nid}")
-    # Omitting `alive` flips the current state.
-    alive = (
-        body.alive
-        if body.alive is not None
-        else not uni.is_link_alive(body.a, body.b)
-    )
-    uni.set_link_alive(body.a, body.b, alive)
-    return await _broadcast(request)
+async def api_toggle_link(req: ToggleLinkRequest) -> dict:
+    """Toggle or force-set a link's alive state, then broadcast."""
+    u = get_universe()
+    node_ids = {n.id for n in u.config.nodes}
+    if req.a not in node_ids:
+        raise HTTPException(status_code=404, detail=f"Node {req.a!r} not found")
+    if req.b not in node_ids:
+        raise HTTPException(status_code=404, detail=f"Node {req.b!r} not found")
+
+    if req.alive is None:
+        new_alive = not u.is_link_alive(req.a, req.b)
+    else:
+        new_alive = req.alive
+
+    u.set_link_alive(req.a, req.b, new_alive)
+    snap = u.snapshot()
+    await manager.broadcast_topology(u, u.constants)
+    if manager.last_route_request:
+        await manager.broadcast_reroute(u, u.constants, find_route)
+    return snap
 
 
 @router.post("/reset")
-async def reset(request: Request) -> dict:
-    """Revive every node and link, then broadcast the restored topology."""
-    _universe(request).reset()
-    return await _broadcast(request)
+async def api_reset() -> dict:
+    """Revive all nodes and links, broadcast updated topology."""
+    u = get_universe()
+    u.reset()
+    snap = u.snapshot()
+    await manager.broadcast_topology(u, u.constants)
+    if manager.last_route_request:
+        await manager.broadcast_reroute(u, u.constants, find_route)
+    return snap
