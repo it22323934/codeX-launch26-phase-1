@@ -135,4 +135,8 @@ class Universe:
                         }
                     )
 
-        return {"nodes": node_list, "edges": edge_list}
+        return {
+            "system_name": self.config.universe_metadata.system_name,
+            "nodes": node_list,
+            "edges": edge_list,
+        }

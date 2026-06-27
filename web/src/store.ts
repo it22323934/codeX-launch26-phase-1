@@ -27,6 +27,7 @@ export interface Edge {
 }
 
 export interface Snapshot {
+  system_name?: string
   nodes: Node[]
   edges: Edge[]
 }

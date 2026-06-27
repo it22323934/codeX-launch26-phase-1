@@ -1,6 +1,40 @@
 from pydantic import BaseModel, field_validator, model_validator
-from typing import Any, Optional
+from typing import Optional
 
+
+# ── Universe-level physics / protocol constants ──────────────────────────────
+
+class UniverseMetadata(BaseModel):
+    system_name: str
+    speed_of_light_kms: float
+    max_void_hop_distance_km: float
+    coordinate_scale_unit_km: float
+    tower_processing_delay_ms: float
+    fiber_speed_fraction: float
+
+    @field_validator("speed_of_light_kms", "max_void_hop_distance_km", "coordinate_scale_unit_km")
+    @classmethod
+    def must_be_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("must be > 0")
+        return v
+
+    @field_validator("tower_processing_delay_ms")
+    @classmethod
+    def non_negative_delay(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("must be >= 0")
+        return v
+
+    @field_validator("fiber_speed_fraction")
+    @classmethod
+    def fraction_range(cls, v: float) -> float:
+        if not (0 < v <= 1):
+            raise ValueError("must be in (0, 1] — a fraction of the speed of light")
+        return v
+
+
+# ── Per-planet node ───────────────────────────────────────────────────────────
 
 class Node(BaseModel):
     id: str
@@ -49,7 +83,7 @@ class Node(BaseModel):
 
 
 class UniverseConfig(BaseModel):
-    universe_metadata: dict[str, Any] = {}
+    universe_metadata: UniverseMetadata
     nodes: list[Node]
 
     @model_validator(mode="after")
