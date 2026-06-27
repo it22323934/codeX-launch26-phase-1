@@ -620,65 +620,44 @@ export function SceneCanvas() {
               </>
             )}
 
-            {/* Tower bulbs — T0 at top, clockwise */}
+            {/* Tower dots — small circles on the equatorial ring */}
             {Array.from({ length: node.active_towers }, (_, k) => {
               const [tx, ty] = towerPx(cx, cy, k, node.active_towers, pr)
               const angle    = (2 * Math.PI * k) / node.active_towers
-              const outX     = Math.sin(angle)          // radially outward in SVG
+              const outX     = Math.sin(angle)
               const outY     = -Math.cos(angle)
+              const lx = tx + outX * 11, ly = ty + outY * 11
               const isActive = route?.hop_log?.some(
                 h => h.planet === node.id && (h.recv_tower === k || h.send_tower === k)
               ) ?? false
 
-              // Glass bulb center sits 5px outward from the equator surface point
-              const gx = tx + outX * 5, gy = ty + outY * 5
-              // Index label sits 13px further out
-              const lx = tx + outX * 14, ly = ty + outY * 14
-
-              const bulbR    = isActive ? 4.2 : 2.8
-              const stemClr  = isActive ? color : (alive ? `${color}90` : COLORS.STEEL)
-              const glassClr = isActive ? color : (alive ? `${color}35` : `${COLORS.STEEL}50`)
-
               return (
                 <g key={k}>
-                  {/* Stem */}
-                  <line x1={tx} y1={ty} x2={gx} y2={gy}
-                    stroke={stemClr} strokeWidth={1.3}
-                    opacity={alive ? 0.65 : 0.2}
-                  />
-                  {/* Socket base */}
-                  <circle cx={tx} cy={ty} r={1.8}
-                    fill={stemClr} opacity={alive ? 0.7 : 0.2}
-                  />
-                  {/* Glass bulb */}
-                  <circle cx={gx} cy={gy} r={bulbR}
-                    fill={glassClr}
-                    stroke={isActive ? color : (alive ? `${color}66` : `${COLORS.STEEL}44`)}
-                    strokeWidth={0.6}
-                    opacity={alive ? 1 : 0.25}
-                    filter={isActive ? 'url(#glow-sm)' : undefined}
-                  />
-                  {/* Filament (white core when lit) */}
-                  {isActive && alive && (
-                    <circle cx={gx} cy={gy} r={1.8}
-                      fill="white" opacity={0.9}
-                    />
-                  )}
-                  {/* Packet-flash glow halo — faded in/out by packet RAF via DOM */}
+                  {/* Packet-flash glow — opacity driven by RAF, starts hidden */}
                   <circle
                     data-relic-planet={node.id}
                     data-relic-tower={k}
-                    cx={gx} cy={gy} r={13}
+                    cx={tx} cy={ty} r={10}
                     fill={color} opacity={0}
                     filter="url(#glow)"
                   />
-                  {/* Tower index label */}
+                  {/* Tower dot sitting on equator */}
+                  <circle
+                    cx={tx} cy={ty}
+                    r={isActive ? 3.5 : 2.2}
+                    fill={isActive ? color : (alive ? `${color}28` : `${COLORS.STEEL}40`)}
+                    stroke={isActive ? color : (alive ? `${color}80` : COLORS.STEEL)}
+                    strokeWidth={0.7}
+                    opacity={alive ? (isActive ? 1 : 0.72) : 0.2}
+                    filter={isActive ? 'url(#glow-sm)' : undefined}
+                  />
+                  {/* Label */}
                   <text x={lx} y={ly}
                     textAnchor="middle" dominantBaseline="middle"
                     fontFamily="'JetBrains Mono', monospace"
                     fontSize="6"
                     fill={isActive ? color : (alive ? `${color}99` : COLORS.STEEL)}
-                    opacity={isActive ? 0.9 : 0.38}
+                    opacity={isActive ? 0.9 : 0.35}
                   >T{k + 1}</text>
                 </g>
               )
