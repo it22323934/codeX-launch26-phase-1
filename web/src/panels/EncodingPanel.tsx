@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useStore } from '../store'
 import { COLORS } from '../constants/visual'
 
@@ -7,7 +7,7 @@ import { COLORS } from '../constants/visual'
 function Label({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontSize: '12px', fontWeight: 700,
+      fontSize: '13px', fontWeight: 700,
       color: COLORS.TEXT_DIM, marginBottom: '4px',
     }}>
       {children}
@@ -19,7 +19,7 @@ function CodeBlock({ color, children }: { color: string; children: React.ReactNo
   return (
     <div style={{
       fontFamily: "'JetBrains Mono', monospace",
-      fontSize: '10px', color, lineHeight: '1.6',
+      fontSize: '12px', color, lineHeight: '1.6',
       wordBreak: 'break-all',
       padding: '6px 10px',
       background: `${color}0A`,
@@ -155,7 +155,7 @@ function TabBar({
           style={{
             padding: '4px 12px 6px',
             fontFamily: "'Orbitron', sans-serif",
-            fontSize: '7px', fontWeight: 700,
+            fontSize: '11px', fontWeight: 700,
             letterSpacing: '0.14em',
             color: active === t.key ? COLORS.CYAN : COLORS.TEXT_DIM,
             background: 'transparent',
@@ -171,6 +171,52 @@ function TabBar({
           {t.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+// ─── Animated collapse body ──────────────────────────────────────────────────
+
+function CollapseBody({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number | undefined>(open ? undefined : 0)
+  const [visible, setVisible] = useState(open)
+
+  useEffect(() => {
+    if (!ref.current) return
+    if (open) {
+      // Expanding: set height to scrollHeight, then unset after transition
+      setVisible(true)
+      const h = ref.current.scrollHeight
+      setHeight(h)
+      const tid = setTimeout(() => setHeight(undefined), 250)
+      return () => clearTimeout(tid)
+    } else {
+      // Collapsing: lock height at scrollHeight first, then animate to 0
+      const h = ref.current.scrollHeight
+      setHeight(h)
+      // Force a reflow so the browser sees the non-zero height before we set 0
+      ref.current.getBoundingClientRect()
+      requestAnimationFrame(() => {
+        setHeight(0)
+      })
+      const tid = setTimeout(() => setVisible(false), 250)
+      return () => clearTimeout(tid)
+    }
+  }, [open])
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        height: height === undefined ? 'auto' : `${height}px`,
+        overflow: 'hidden',
+        transition: 'height 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+        // Keep in DOM but invisible when collapsed so height reads correctly
+        visibility: visible ? 'visible' : 'hidden',
+      }}
+    >
+      {children}
     </div>
   )
 }
@@ -255,19 +301,19 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '9px', color: COLORS.TEXT_DIM, minWidth: '18px',
+            fontSize: '11px', color: COLORS.TEXT_DIM, minWidth: '18px',
           }}>
             {String(index + 1).padStart(2, '0')}
           </span>
           <span style={{
             fontFamily: "'Orbitron', sans-serif",
-            fontSize: '9px', fontWeight: 700,
+            fontSize: '11px', fontWeight: 700,
             letterSpacing: '0.14em', color: COLORS.CYAN,
           }}>
             {(entry.planet_id ?? `HOP ${index + 1}`).toUpperCase()}
           </span>
           <span style={{
-            fontSize: '11px', color: roleColor,
+            fontSize: '12px', color: roleColor,
             padding: '1px 7px',
             border: `1.5px solid ${roleColor}`,
             borderRadius: '6px 4px 7px 4px',
@@ -287,15 +333,18 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
           </span>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '10px', color: COLORS.TEXT_DIM,
+            fontSize: '12px', color: COLORS.TEXT_DIM,
+            transition: 'transform 0.22s ease',
+            display: 'inline-block',
+            transform: open ? 'rotate(0deg)' : 'rotate(-180deg)',
           }}>
-            {open ? '▲' : '▼'}
+            ▲
           </span>
         </div>
       </button>
 
-      {/* ── expanded body ── */}
-      {open && (
+      {/* ── animated collapse body ── */}
+      <CollapseBody open={open}>
         <div className="hop-open" style={{
           background: '#FBF5E6',
           border: '1.5px solid rgba(43,39,34,0.4)',
@@ -341,7 +390,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
                     <Label>Bits on the wire</Label>
                     <div style={{
                       fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: '8.5px', color: COLORS.TEXT_DIM,
+                      fontSize: '11px', color: COLORS.TEXT_DIM,
                       lineHeight: '1.8', letterSpacing: '0.08em',
                       wordBreak: 'break-all',
                       padding: '6px 10px',
@@ -380,7 +429,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
             {tab === 'math' && !hop && (
               <div style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: '9px', color: COLORS.TEXT_DIM,
+                fontSize: '12px', color: COLORS.TEXT_DIM,
                 padding: '10px 0',
               }}>
                 No latency data for this hop.
@@ -388,7 +437,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
             )}
           </div>
         </div>
-      )}
+      </CollapseBody>
     </div>
   )
 }
@@ -419,7 +468,7 @@ export function EncodingPanel() {
         {translation.length === 0 ? (
           <div style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '10px', color: COLORS.TEXT_DIM, letterSpacing: '0.08em',
+            fontSize: '12px', color: COLORS.TEXT_DIM, letterSpacing: '0.08em',
           }}>
             No translation yet — send a message first.
           </div>
