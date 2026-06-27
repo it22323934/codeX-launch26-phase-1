@@ -155,7 +155,7 @@ function TabBar({
           style={{
             padding: '4px 12px 6px',
             fontFamily: "'Orbitron', sans-serif",
-            fontSize: '7px', fontWeight: 700,
+            fontSize: '12px', fontWeight: 700,
             letterSpacing: '0.14em',
             color: active === t.key ? COLORS.CYAN : COLORS.TEXT_DIM,
             background: 'transparent',
