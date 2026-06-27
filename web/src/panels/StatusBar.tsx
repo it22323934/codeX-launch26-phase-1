@@ -22,7 +22,7 @@ export function StatusBar() {
   const tag =
     state === 'idle' ? 'Ready to send'
     : state === 'ok' ? 'Delivered'
-    : state === 'dead' ? 'No route found'
+    : state === 'dead' ? 'Route Undeliverable'
     : 'Could not reach the engine'
 
   const sep = <div style={{ width: 1, height: 16, background: 'rgba(43,39,34,0.25)', flexShrink: 0 }} />

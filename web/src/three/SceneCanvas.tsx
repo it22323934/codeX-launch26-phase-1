@@ -723,7 +723,7 @@ export function SceneCanvas() {
                       fill={isActive ? TOWER_RED : COLORS.TEXT_HI}
                       stroke="#ECE3CE" strokeWidth="2" paintOrder="stroke"
                       opacity={isActive || hovered ? 1 : 0.7}
-                    >T{k + 1}</text>
+                    >T{k}</text>
                   )}
                 </g>
               )
