@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useStore } from '../store'
-import { postRoute, resetUniverse, uploadConfig } from '../api'
+import { postRoute, resetUniverse, uploadConfig, loadDefaultConfig } from '../api'
 import { COLORS, INK, ANIM } from '../constants/visual'
 
 const fieldLabel: React.CSSProperties = {
@@ -95,10 +95,11 @@ export function Toolbar() {
     setRoute, setKillMode, setSnapshot, setTransmitError,
   } = useStore()
 
-  const [loading,      setLoading]      = useState(false)
-  const [glitching,    setGlitching]    = useState(false)
-  const [loadingCfg,   setLoadingCfg]   = useState(false)
-  const [cfgError,     setCfgError]     = useState<string | null>(null)
+  const [loading,        setLoading]        = useState(false)
+  const [glitching,      setGlitching]      = useState(false)
+  const [loadingCfg,     setLoadingCfg]     = useState(false)
+  const [loadingDefault, setLoadingDefault] = useState(false)
+  const [cfgError,       setCfgError]       = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const nodes = snapshot?.nodes ?? []
 
@@ -127,6 +128,15 @@ export function Toolbar() {
     const snap = await resetUniverse()
     if (snap) { setSnapshot(snap); setRoute(null); setTransmitError(null) }
   }, [setSnapshot, setRoute, setTransmitError])
+
+  const handleLoadDefault = useCallback(async () => {
+    setCfgError(null)
+    setLoadingDefault(true)
+    const res = await loadDefaultConfig()
+    setLoadingDefault(false)
+    if (res.ok) { setSnapshot(res.snapshot); setRoute(null) }
+    else setCfgError(res.error)
+  }, [setSnapshot, setRoute])
 
   const handleLoadConfig = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -157,7 +167,7 @@ export function Toolbar() {
     }
   }, [snapshot]) // eslint-disable-line
 
-  const canTransmit = !!originId && !!destinationId && !loading
+  const canTransmit = !!originId && !!destinationId && originId !== destinationId && !loading
 
   return (
     <div>
@@ -175,11 +185,14 @@ export function Toolbar() {
             <select
               style={fieldBase}
               value={originId}
-              onChange={e => setOriginId(e.target.value)}
+              onChange={e => {
+                setOriginId(e.target.value)
+                if (e.target.value && e.target.value === destinationId) setDestinationId('')
+              }}
             >
               <option value="">Choose a planet</option>
               {nodes.map(n => (
-                <option key={n.id} value={n.id}>
+                <option key={n.id} value={n.id} disabled={n.id === destinationId}>
                   {n.id}{!n.alive ? ' (dead)' : ''}
                 </option>
               ))}
@@ -189,11 +202,14 @@ export function Toolbar() {
             <select
               style={fieldBase}
               value={destinationId}
-              onChange={e => setDestinationId(e.target.value)}
+              onChange={e => {
+                setDestinationId(e.target.value)
+                if (e.target.value && e.target.value === originId) setOriginId('')
+              }}
             >
               <option value="">Choose a planet</option>
               {nodes.map(n => (
-                <option key={n.id} value={n.id}>
+                <option key={n.id} value={n.id} disabled={n.id === originId}>
                   {n.id}{!n.alive ? ' (dead)' : ''}
                 </option>
               ))}
@@ -253,7 +269,7 @@ export function Toolbar() {
         {/* ── Load Config ─────────────────────────────────────────────── */}
         <div style={{
           marginTop: '10px',
-          borderTop: '1px solid rgba(52,227,255,0.08)',
+          borderTop: `1px solid rgba(43,39,34,0.12)`,
           paddingTop: '10px',
         }}>
           <input
@@ -263,30 +279,54 @@ export function Toolbar() {
             style={{ display: 'none' }}
             onChange={handleLoadConfig}
           />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={loadingCfg}
-            style={{
-              width: '100%',
-              padding: '7px 6px',
-              background: 'transparent',
-              color: loadingCfg ? COLORS.TEXT_DIM : COLORS.TEXT_HI,
-              border: `2px solid ${INK.LINE}`,
-              borderRadius: '9px 7px 10px 7px',
-              fontSize: '15px', fontWeight: 700,
-              cursor: loadingCfg ? 'not-allowed' : 'pointer',
-              outline: 'none',
-              transition: 'all 0.15s',
-            }}
-          >
-            {loadingCfg ? 'Loading...' : 'Load a universe file...'}
-          </button>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {/* Load a custom file */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loadingCfg || loadingDefault}
+              title="Upload a custom universe JSON config file"
+              style={{
+                flex: 1,
+                padding: '7px 6px',
+                background: 'transparent',
+                color: (loadingCfg || loadingDefault) ? COLORS.TEXT_DIM : COLORS.TEXT_HI,
+                border: `2px solid ${INK.LINE}`,
+                borderRadius: '9px 7px 10px 7px',
+                fontSize: '13px', fontWeight: 700,
+                cursor: (loadingCfg || loadingDefault) ? 'not-allowed' : 'pointer',
+                outline: 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              {loadingCfg ? 'Loading...' : 'Load file...'}
+            </button>
+            {/* Reload default from server disk */}
+            <button
+              onClick={handleLoadDefault}
+              disabled={loadingCfg || loadingDefault}
+              title="Reload the built-in default universe (Zeta-26)"
+              style={{
+                flex: 1,
+                padding: '7px 6px',
+                background: 'transparent',
+                color: (loadingCfg || loadingDefault) ? COLORS.TEXT_DIM : COLORS.CYAN,
+                border: `2px solid ${(loadingCfg || loadingDefault) ? COLORS.STEEL : COLORS.CYAN}`,
+                borderRadius: '9px 7px 10px 7px',
+                fontSize: '13px', fontWeight: 700,
+                cursor: (loadingCfg || loadingDefault) ? 'not-allowed' : 'pointer',
+                outline: 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              {loadingDefault ? 'Loading...' : 'Load default'}
+            </button>
+          </div>
           {cfgError && (
             <div style={{
               marginTop: '5px',
-              fontSize: '12px', color: COLORS.MAGENTA,
+              fontSize: '11px', color: COLORS.MAGENTA,
             }}>
-              Couldn't load: {cfgError}
+              {cfgError}
             </div>
           )}
         </div>

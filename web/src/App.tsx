@@ -84,7 +84,7 @@ export default function App() {
       <div className="hud-panel panel-boot" style={{ animationDelay: '120ms', flexShrink: 0, marginBottom: '8px' }}>
         <TelemetryPanel />
       </div>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '240ms', flexShrink: 0, minHeight: 0, overflow: 'hidden', marginBottom: '8px' }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '240ms', flexShrink: 0, marginBottom: '8px' }}>
         <HopLogPanel />
       </div>
       <div className="hud-panel panel-boot" style={{ animationDelay: '360ms', flexShrink: 0, marginBottom: '8px' }}>
