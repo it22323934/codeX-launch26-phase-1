@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store'
 import { COLORS } from '../constants/visual'
 
-const mono = (color = COLORS.TEXT_HI, size = '9px'): React.CSSProperties => ({
+const mono = (color: string = COLORS.TEXT_HI, size = '9px'): React.CSSProperties => ({
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: size, color, lineHeight: '1.6', wordBreak: 'break-all',
 })

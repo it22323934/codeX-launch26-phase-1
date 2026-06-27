@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useStore } from '../store'
-import { postRoute, resetUniverse } from '../api'
+import { postRoute, resetUniverse, postConfig } from '../api'
 import { COLORS, ANIM } from '../constants/visual'
 
 const fieldLabel: React.CSSProperties = {
@@ -100,8 +100,11 @@ export function Toolbar() {
     setRoute, setKillMode, setSnapshot,
   } = useStore()
 
-  const [loading,   setLoading]   = useState(false)
-  const [glitching, setGlitching] = useState(false)
+  const [loading,      setLoading]      = useState(false)
+  const [glitching,    setGlitching]    = useState(false)
+  const [loadingCfg,   setLoadingCfg]   = useState(false)
+  const [cfgError,     setCfgError]     = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const nodes = snapshot?.nodes ?? []
 
   const triggerGlitch = useCallback(() => {
@@ -123,6 +126,28 @@ export function Toolbar() {
   const handleReset = useCallback(async () => {
     const snap = await resetUniverse()
     if (snap) { setSnapshot(snap); setRoute(null) }
+  }, [setSnapshot, setRoute])
+
+  const handleLoadConfig = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCfgError(null)
+    setLoadingCfg(true)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      try {
+        const cfg = JSON.parse(ev.target?.result as string)
+        const snap = await postConfig(cfg)
+        if (snap) { setSnapshot(snap); setRoute(null) }
+        else setCfgError('Server rejected config')
+      } catch {
+        setCfgError('Invalid JSON file')
+      } finally {
+        setLoadingCfg(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      }
+    }
+    reader.readAsText(file)
   }, [setSnapshot, setRoute])
 
   useEffect(() => {
@@ -219,6 +244,50 @@ export function Toolbar() {
             Click a planet or link to toggle its state
           </div>
         )}
+
+        {/* ── Load Config ─────────────────────────────────────────────── */}
+        <div style={{
+          marginTop: '10px',
+          borderTop: '1px solid rgba(52,227,255,0.08)',
+          paddingTop: '10px',
+        }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={handleLoadConfig}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loadingCfg}
+            style={{
+              width: '100%',
+              padding: '7px 6px',
+              background: 'transparent',
+              color: loadingCfg ? COLORS.TEXT_DIM : COLORS.STEEL,
+              border: `1px solid ${loadingCfg ? 'rgba(58,74,99,0.3)' : 'rgba(58,74,99,0.45)'}`,
+              borderRadius: '3px',
+              fontFamily: "'Orbitron', sans-serif",
+              fontSize: '7px', fontWeight: 700, letterSpacing: '0.14em',
+              cursor: loadingCfg ? 'not-allowed' : 'pointer',
+              outline: 'none',
+              transition: 'all 0.15s',
+            }}
+          >
+            {loadingCfg ? '[ LOADING... ]' : '[ LOAD universe-config.json ]'}
+          </button>
+          {cfgError && (
+            <div style={{
+              marginTop: '5px',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: '8px', color: COLORS.MAGENTA,
+              letterSpacing: '0.05em',
+            }}>
+              ⚠ {cfgError}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

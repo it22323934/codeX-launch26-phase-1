@@ -124,9 +124,55 @@
       ::-webkit-scrollbar-thumb { background: rgba(52,227,255,0.2); border-radius: 2px; }
       ::-webkit-scrollbar-thumb:hover { background: rgba(52,227,255,0.5); }
 
+      /* ── Star twinkle ─────────────────────────────────────────────────── */
+      @keyframes star-twinkle-anim {
+        0%, 100% { opacity: 1;   transform: scale(1);   }
+        50%      { opacity: 0.18; transform: scale(0.75); }
+      }
+      .star-twinkle {
+        animation: star-twinkle-anim var(--twinkle-dur, 3s) ease-in-out infinite;
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+
+      /* ── Route marching ants ───────────────────────────────────────────── */
+      @keyframes route-march-anim { to { stroke-dashoffset: -15; } }
+      .route-march { animation: route-march-anim 0.5s linear infinite; }
+
+      /* ── Active planet pulse ring ──────────────────────────────────────── */
+      @keyframes planet-pulse-anim {
+        0%   { transform: scale(1);   opacity: 0.75; }
+        100% { transform: scale(2.0); opacity: 0;    }
+      }
+      .planet-pulse {
+        animation: planet-pulse-anim 2s ease-out infinite;
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+
+      /* ── Dead planet alarm ring ────────────────────────────────────────── */
+      @keyframes dead-ring-anim {
+        0%, 42%, 58%, 100% { opacity: 0.85; }
+        50%                { opacity: 0.1;  }
+      }
+      .dead-ring { animation: dead-ring-anim 1.4s ease-in-out infinite; }
+
+      /* ── Packet outer pulse ────────────────────────────────────────────── */
+      @keyframes packet-outer-anim {
+        0%   { transform: scale(1);   opacity: 0.7; }
+        100% { transform: scale(2.6); opacity: 0;   }
+      }
+      .packet-outer {
+        animation: packet-outer-anim 1.0s ease-out infinite;
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+
       /* ── Reduced motion ───────────────────────────────────────────────── */
       @media (prefers-reduced-motion: reduce) {
-        .panel-boot, .glitch, .dot-active, .dot-dead { animation: none !important; opacity: 1 !important; transform: none !important; }
+        .panel-boot, .glitch, .dot-active, .dot-dead,
+        .star-twinkle, .route-march, .planet-pulse, .dead-ring, .packet-outer
+        { animation: none !important; opacity: 1 !important; transform: none !important; }
       }
 
       /* ── Select / input resets ────────────────────────────────────────── */
