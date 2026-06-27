@@ -54,4 +54,4 @@ async def ws_endpoint(websocket: WebSocket) -> None:
             # Keep alive; client messages are ignored (push-only from server)
             await websocket.receive_text()
     except WebSocketDisconnect:
-        await manager.disconnect(websocket)
+        manager.disconnect(websocket)

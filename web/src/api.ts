@@ -22,7 +22,7 @@ export async function postRoute(
     const res = await fetch(`${BASE}/route`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ origin_id: origin, destination_id: dest, payload }),
+      body: JSON.stringify({ origin, destination: dest, payload }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return (await res.json()) as RouteResult
@@ -37,9 +37,9 @@ export async function toggleNode(
   alive?: boolean
 ): Promise<Snapshot | null> {
   try {
-    const body: Record<string, unknown> = { id }
+    const body: Record<string, unknown> = {}
     if (alive !== undefined) body.alive = alive
-    const res = await fetch(`${BASE}/node/toggle`, {
+    const res = await fetch(`${BASE}/nodes/${encodeURIComponent(id)}/toggle`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -60,7 +60,7 @@ export async function toggleLink(
   try {
     const body: Record<string, unknown> = { a, b }
     if (alive !== undefined) body.alive = alive
-    const res = await fetch(`${BASE}/link/toggle`, {
+    const res = await fetch(`${BASE}/links/toggle`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -108,12 +108,13 @@ export function connectWS(
       try {
         const data = JSON.parse(event.data as string) as {
           type: string
-          [key: string]: unknown
+          snapshot?: Snapshot
+          result?: RouteResult
         }
-        if (data.type === 'topology') {
-          onTopology(data as unknown as Snapshot)
-        } else if (data.type === 'route') {
-          onRoute(data as unknown as RouteResult)
+        if (data.type === 'topology' && data.snapshot) {
+          onTopology(data.snapshot)
+        } else if (data.type === 'route' && data.result) {
+          onRoute(data.result)
         }
       } catch {
         // malformed frame — ignore
