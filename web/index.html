@@ -391,7 +391,12 @@
       .panel-header-badge { font-size: 13px !important; color: #7B7059 !important; letter-spacing: 0 !important; }
 
       /* Drop the neon hologram overlays; keep a soft paper vignette + gentle tilt. */
-      .holo-stage { background: transparent !important; }
+      .holo-stage { background: transparent !important; perspective: none !important; }
+      /* No 3D tilt: a rotateX/Y transform rasterizes the SVG and softens text. */
+      .holo-tilt {
+        transform: none !important; transform-style: flat !important;
+        will-change: auto !important; transition: none !important;
+      }
       .holo-projector, .holo-scanlines, .holo-flicker { display: none !important; }
       .holo-vignette { box-shadow: inset 0 0 120px 34px rgba(120,108,80,0.20) !important; }
 
@@ -468,6 +473,24 @@
         box-shadow: 1.5px 2px 0 rgba(43,39,34,0.18);
       }
       .rail-btn:hover { background: #2E5E8C; color: #FBF5E6; }
+
+      /* Masonry-safe panels (full screen uses CSS columns so expanding one
+         panel never shoves the others) + an enter/exit grow animation. */
+      .hud-panel { break-inside: avoid; }
+      @keyframes panel-grow {
+        from { opacity: 0; transform: scale(0.985) translateY(8px); }
+        to   { opacity: 1; transform: none; }
+      }
+      .panel-grow { animation: panel-grow 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+      /* One hop card expanding — animates only itself, not the whole section. */
+      @keyframes hop-open {
+        from { opacity: 0; transform: translateY(-4px); }
+        to   { opacity: 1; transform: none; }
+      }
+      .hop-open { animation: hop-open 0.22s ease-out; }
+      @media (prefers-reduced-motion: reduce) {
+        .panel-grow, .hop-open { animation: none !important; }
+      }
     </style>
   </head>
   <body>

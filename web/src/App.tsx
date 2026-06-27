@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useStore } from './store'
 import { loadUniverse, connectWS } from './api'
 import { COLORS, INK } from './constants/visual'
@@ -10,7 +10,6 @@ import { EncodingPanel }  from './panels/EncodingPanel'
 import { StatusBar }      from './panels/StatusBar'
 
 const PANEL_W = 400
-const TILT_MAX_DEG = 5  // gentle parallax, like a sketch on a desk
 
 type PanelMode = 'normal' | 'collapsed' | 'full'
 
@@ -33,7 +32,6 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
   const [panelMode, setPanelMode]   = useState<PanelMode>('normal')
-  const tiltRef = useRef<HTMLDivElement>(null)
 
   // ── Initial load + retry ───────────────────────────────────────────────────
   const boot = useCallback(async () => {
@@ -66,23 +64,6 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // ── Parallax tilt ──────────────────────────────────────────────────────────
-  const onStageMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const el = tiltRef.current
-    if (!el) return
-    const r = e.currentTarget.getBoundingClientRect()
-    const px = (e.clientX - r.left) / r.width - 0.5
-    const py = (e.clientY - r.top) / r.height - 0.5
-    el.style.setProperty('--holo-ry', `${(px * TILT_MAX_DEG).toFixed(2)}deg`)
-    el.style.setProperty('--holo-rx', `${(-py * TILT_MAX_DEG).toFixed(2)}deg`)
-  }, [])
-  const onStageLeave = useCallback(() => {
-    const el = tiltRef.current
-    if (!el) return
-    el.style.setProperty('--holo-ry', '0deg')
-    el.style.setProperty('--holo-rx', '0deg')
-  }, [])
-
   // ── Top-bar status ─────────────────────────────────────────────────────────
   const total = snapshot?.nodes.length ?? 0
   const aliveCount = snapshot?.nodes.filter(n => n.alive).length ?? 0
@@ -97,16 +78,16 @@ export default function App() {
 
   const panels = (
     <>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '0ms',   flexShrink: 0 }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '0ms',   flexShrink: 0, marginBottom: '8px' }}>
         <Toolbar />
       </div>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '120ms', flexShrink: 0 }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '120ms', flexShrink: 0, marginBottom: '8px' }}>
         <TelemetryPanel />
       </div>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '240ms', flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '240ms', flexShrink: 0, minHeight: 0, overflow: 'hidden', marginBottom: '8px' }}>
         <HopLogPanel />
       </div>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '360ms', flexShrink: 0 }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '360ms', flexShrink: 0, marginBottom: '8px' }}>
         <EncodingPanel />
       </div>
     </>
@@ -145,8 +126,8 @@ export default function App() {
         {/* Sketch map */}
         {!fullMode && (
           <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-            <div className="holo-stage" onMouseMove={onStageMove} onMouseLeave={onStageLeave}>
-              <div className="holo-tilt" ref={tiltRef}>
+            <div className="holo-stage">
+              <div className="holo-tilt">
                 <SceneCanvas />
               </div>
               <div className="holo-vignette" />
@@ -247,11 +228,11 @@ export default function App() {
                 </button>
               )}
             </div>
-            <div style={{
+            <div className="panel-grow" key={panelMode} style={{
               flex: 1, overflowY: 'auto', padding: '8px',
               ...(fullMode
-                ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '8px', alignContent: 'start' }
-                : { display: 'flex', flexDirection: 'column', gap: '8px' }),
+                ? { columns: '400px', columnGap: '8px' }
+                : { display: 'flex', flexDirection: 'column' }),
             }}>
               {panels}
             </div>
@@ -264,7 +245,7 @@ export default function App() {
             position: 'absolute', bottom: 0, left: 0, right: 0,
             maxHeight: '65vh', overflowY: 'auto',
             background: COLORS.VOID_BLACK, borderTop: `2px solid ${INK.LINE}`,
-            zIndex: 20, display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px',
+            zIndex: 20, display: 'flex', flexDirection: 'column', padding: '10px',
           }}>
             {panels}
           </div>

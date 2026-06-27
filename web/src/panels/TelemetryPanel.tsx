@@ -20,7 +20,6 @@ function Bar({ value, total, color }: { value: number; total: number; color: str
       <div style={{
         height: '100%', width: `${pct}%`,
         background: color,
-        boxShadow: `0 0 6px ${color}88`,
         transition: 'width 0.4s ease',
         minWidth: pct > 0 ? '2px' : '0',
       }} />
@@ -38,10 +37,10 @@ function StackedBar({ lat }: { lat: typeof dummyLat }) {
   ]
   return (
     <div style={{
-      display: 'flex', height: '6px', width: '100%',
-      borderRadius: '3px', overflow: 'hidden',
-      background: 'rgba(58,74,99,0.2)',
-      border: '1px solid rgba(52,227,255,0.08)',
+      display: 'flex', height: '10px', width: '100%',
+      borderRadius: '5px', overflow: 'hidden',
+      background: 'rgba(43,39,34,0.12)',
+      border: `1.5px solid ${COLORS.TEXT_HI}`,
       marginBottom: '14px',
     }}>
       {pcts.map(({ pct, color, key }) => (
@@ -89,25 +88,21 @@ export function TelemetryPanel() {
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                       <div style={{
-                        width: 7, height: 7, borderRadius: '50%',
-                        background: color, boxShadow: `0 0 5px ${color}`,
+                        width: 11, height: 11, borderRadius: '50%',
+                        background: color, border: `1.5px solid ${COLORS.TEXT_HI}`,
                       }} />
                       <span style={{
-                        fontFamily: "'Orbitron', sans-serif",
-                        fontSize: '7px', fontWeight: 700,
-                        letterSpacing: '0.14em', color: COLORS.TEXT_DIM,
+                        fontSize: '13px', fontWeight: 700, color: COLORS.TEXT_HI,
                       }}>{key}</span>
                       <span style={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '7px', color: 'rgba(111,128,153,0.45)',
+                        fontSize: '11px', color: COLORS.TEXT_DIM,
                       }}>{comment}</span>
                     </div>
                     <span style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: '11px', fontWeight: 700, color,
+                      fontSize: '15px', fontWeight: 700, color,
                     }}>
                       {val.toFixed(3)}
-                      <span style={{ fontSize: '8px', color: COLORS.TEXT_DIM, fontWeight: 400 }}> ms</span>
+                      <span style={{ fontSize: '11px', color: COLORS.TEXT_DIM, fontWeight: 400 }}> ms</span>
                     </span>
                   </div>
                   <Bar value={val} total={lat.total_ms} color={color} />
@@ -131,9 +126,8 @@ export function TelemetryPanel() {
               <div style={{ textAlign: 'right' }}>
                 <div style={{
                   fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '18px', fontWeight: 700,
+                  fontSize: '20px', fontWeight: 700,
                   color: COLORS.CYAN,
-                  textShadow: `0 0 12px ${COLORS.CYAN}88`,
                   lineHeight: 1,
                 }}>
                   {lat.total_ms.toFixed(2)}

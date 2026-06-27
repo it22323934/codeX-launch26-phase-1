@@ -55,16 +55,12 @@ function MathBlock({
         borderBottom: `1px solid ${color}22`,
       }}>
         <div style={{
-          fontFamily: "'Orbitron', sans-serif",
-          fontSize: '8px', fontWeight: 700,
-          letterSpacing: '0.16em', color,
+          fontSize: '14px', fontWeight: 700, color,
         }}>
           {title}
         </div>
         <div style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '8px', color: `${color}99`,
-          marginTop: '2px', letterSpacing: '0.05em',
+          fontSize: '12px', color: `${color}cc`, marginTop: '2px',
         }}>
           {formula}
         </div>
@@ -88,16 +84,12 @@ function MathBlock({
                 marginTop: '4px',
               }}>
                 <span style={{
-                  fontFamily: "'Orbitron', sans-serif",
-                  fontSize: '8px', fontWeight: 700,
-                  letterSpacing: '0.14em', color,
+                  fontSize: '14px', fontWeight: 700, color,
                 }}>
                   {row.label}
                 </span>
                 <span style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '11px', fontWeight: 700, color,
-                  textShadow: `0 0 10px ${color}88`,
+                  fontSize: '15px', fontWeight: 700, color,
                 }}>
                   {row.value}
                 </span>
@@ -111,15 +103,13 @@ function MathBlock({
             }}>
               <div>
                 <span style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '9px', color: COLORS.TEXT_DIM,
+                  fontSize: '13px', color: COLORS.TEXT_DIM,
                 }}>
                   {row.label}
                 </span>
                 {row.sub && (
                   <span style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: '7.5px', color: `${color}70`,
+                    fontSize: '12px', color: `${color}aa`,
                     marginLeft: '6px',
                   }}>
                     {row.sub}
@@ -127,8 +117,7 @@ function MathBlock({
                 )}
               </div>
               <span style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: '9.5px', color: COLORS.TEXT_HI,
+                fontSize: '13px', color: COLORS.TEXT_HI,
                 textAlign: 'right', flexShrink: 0,
               }}>
                 {row.value}
@@ -245,7 +234,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
   }
 
   const roleColor = hop?.role === 'origin' ? COLORS.CYAN
-    : hop?.role === 'destination' ? '#A8FF78'
+    : hop?.role === 'destination' ? '#2E7D32'
     : COLORS.MAGENTA
 
   return (
@@ -278,11 +267,10 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
             {(entry.planet_id ?? `HOP ${index + 1}`).toUpperCase()}
           </span>
           <span style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '7px', color: roleColor,
-            padding: '1px 5px',
-            border: `1px solid ${roleColor}44`,
-            borderRadius: '2px',
+            fontSize: '11px', color: roleColor,
+            padding: '1px 7px',
+            border: `1.5px solid ${roleColor}`,
+            borderRadius: '6px 4px 7px 4px',
             textTransform: 'uppercase',
           }}>
             {hop?.role ?? ''}
@@ -290,12 +278,10 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '9px', color: COLORS.MAGENTA,
-            padding: '2px 8px',
-            border: `1px solid rgba(255,45,155,0.35)`,
-            borderRadius: '3px',
-            letterSpacing: '0.06em',
+            fontSize: '12px', color: COLORS.MAGENTA,
+            padding: '1px 8px',
+            border: `1.5px solid ${COLORS.MAGENTA}`,
+            borderRadius: '6px 4px 7px 4px',
           }}>
             BASE-{entry.codex ?? '?'}
           </span>
@@ -310,7 +296,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
 
       {/* ── expanded body ── */}
       {open && (
-        <div style={{
+        <div className="hop-open" style={{
           background: '#FBF5E6',
           border: '1.5px solid rgba(43,39,34,0.4)',
           borderTop: 'none',
@@ -438,7 +424,7 @@ export function EncodingPanel() {
             No translation yet — send a message first.
           </div>
         ) : (
-          <div style={{ maxHeight: '520px', overflowY: 'auto', paddingRight: '2px' }}>
+          <div style={{ paddingRight: '2px' }}>
             {(translation as any[]).map((entry, i) => (
               <HopCard
                 key={i}
