@@ -67,16 +67,25 @@ def closest_tower_pair(a: Node, b: Node, scale: float) -> tuple[int, int]:
     return (best_i, best_j)
 
 
+def tower_segment_count(node: Node, i: int, j: int) -> int:
+    """
+    Number of ring segments (steps) between tower i and j along the shorter arc.
+    s = 0 when i == j (dedup case).
+    Source: spec Equations §3 — m = s+1 distinct towers hit.
+    """
+    if i == j:
+        return 0
+    n = node.active_towers
+    diff = abs(i - j)
+    return min(diff, n - diff)
+
+
 def fiber_arc_length_km(node: Node, i: int, j: int) -> float:
     """
     Great-circle arc length (km) along the equator of node between tower i and tower j.
-    Uses the shorter of the two arcs.
+    Uses the shorter of the two arcs: arc = (2π·r·s) / N where s = segment count.
     """
-    if i == j:
+    s = tower_segment_count(node, i, j)
+    if s == 0:
         return 0.0
-    n = node.active_towers
-    theta_i = 2.0 * math.pi * i / n
-    theta_j = 2.0 * math.pi * j / n
-    delta = abs(theta_i - theta_j)
-    delta = min(delta, 2.0 * math.pi - delta)  # shorter arc
-    return node.radius_km * delta
+    return (2.0 * math.pi * node.radius_km * s) / node.active_towers

@@ -9,7 +9,13 @@ export const COLORS = Object.freeze({
 })
 
 export const SCENE = Object.freeze({
-  PLANET_RADIUS_SCALE:      0.0008,
+  /** km → scene-unit scale for planet radii. Keeps Caelum (58 232 km) ≈ 3.5 units
+   *  in a 20-unit scene while Aegis (6 371 km) ≈ 0.38. Use PLANET_MIN_RADIUS as floor. */
+  PLANET_RADIUS_SCALE:      0.00006,
+  /** Minimum visual radius (scene units) so small planets stay clickable. */
+  PLANET_MIN_RADIUS:        0.25,
+  /** Minimum visual atmosphere shell extra radius (scene units). */
+  ATMO_MIN_EXTRA:           0.08,
   ATMOSPHERE_OPACITY:       0.18,
   PACKET_SPEED:             0.3,
   SCENE_SIZE:               20,

@@ -18,8 +18,14 @@ export function Planet({ node, scenePos, isKillMode, onClick }: PlanetProps) {
   const meshRef = useRef<THREE.Mesh>(null)
   const route   = useStore(s => s.route)
 
-  const planetR = (node.radius_km ?? 1000) * SCENE.PLANET_RADIUS_SCALE
-  const atmoR   = planetR + (node.atmosphere_thickness_km ?? 200) * SCENE.PLANET_RADIUS_SCALE
+  const planetR = Math.max(
+    (node.radius_km ?? 1000) * SCENE.PLANET_RADIUS_SCALE,
+    SCENE.PLANET_MIN_RADIUS
+  )
+  const atmoR = planetR + Math.max(
+    (node.atmosphere_thickness_km ?? 0) * SCENE.PLANET_RADIUS_SCALE,
+    SCENE.ATMO_MIN_EXTRA
+  )
 
   const isInRoute = Boolean(route?.path?.includes(node.id))
   const bodyColor = node.alive
