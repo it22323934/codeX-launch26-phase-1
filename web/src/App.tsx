@@ -94,25 +94,24 @@ export default function App() {
     </>
   )
 
-  // Full-screen layout — Controls + Latency on the top row, Route steps
-  // spanning beneath them (left region), Number-base translation down the
-  // right. Nested flexboxes, so no panel overlaps the way a grid span did.
+  // Full-screen layout:
+  //   Row 1 — Controls + Telemetry side by side (50/50)
+  //   Row 2 — Route Steps, full width
+  //   Row 3 — Number-base Translation, full width
   const fullPanels = (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-start' }}>
-      <div style={{ flex: '2 1 520px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-start' }}>
-          <div className="hud-panel panel-boot" style={{ flex: '1 1 240px', minWidth: 0, animationDelay: '0ms' }}>
-            <Toolbar />
-          </div>
-          <div className="hud-panel panel-boot" style={{ flex: '1 1 240px', minWidth: 0, animationDelay: '120ms' }}>
-            <TelemetryPanel />
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="hud-panel panel-boot" style={{ flex: 1, minWidth: 0, animationDelay: '0ms' }}>
+          <Toolbar />
         </div>
-        <div className="hud-panel panel-boot" style={{ animationDelay: '240ms' }}>
-          <HopLogPanel />
+        <div className="hud-panel panel-boot" style={{ flex: 1, minWidth: 0, animationDelay: '120ms' }}>
+          <TelemetryPanel />
         </div>
       </div>
-      <div className="hud-panel panel-boot" style={{ flex: '1 1 300px', minWidth: 0, animationDelay: '360ms' }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '240ms' }}>
+        <HopLogPanel />
+      </div>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '360ms' }}>
         <EncodingPanel />
       </div>
     </div>
