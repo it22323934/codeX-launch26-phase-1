@@ -223,8 +223,9 @@ function CollapseBody({ open, children }: { open: boolean; children: React.React
 
 // ─── Hop card ────────────────────────────────────────────────────────────────
 
-function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }) {
-  const [open, setOpen] = useState(index === 0)
+function HopCard({ entry, index, hop, open, onToggle }: {
+  entry: any; index: number; hop?: any; open: boolean; onToggle: () => void
+}) {
   const [tab,  setTab]  = useState<'codex' | 'math'>('codex')
 
   // ---- math inputs ----
@@ -279,26 +280,49 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
     tvRows.push({ label: 'T_v', value: `${fmt(crx.total_ms)} ms`, total: true })
   }
 
-  const roleColor = hop?.role === 'origin' ? COLORS.CYAN
-    : hop?.role === 'destination' ? '#2E7D32'
+  const role = (hop?.role ?? entry.role ?? '').toLowerCase()
+  const roleColor = role === 'origin' ? COLORS.CYAN
+    : role === 'destination' ? '#2E7D32'
     : COLORS.MAGENTA
+  const roleLabel = role === 'origin' ? 'Sender'
+    : role === 'destination' ? 'Receiver'
+    : role ? 'Relay' : ''
+
+  // A one-line gist shown even while the card is collapsed.
+  const summary = entry.ascii != null
+    ? `“${entry.ascii}”`
+    : entry.received_as != null
+      ? `[${(entry.received_as as string[]).slice(0, 6).join(', ')}${(entry.received_as as string[]).length > 6 ? ', …' : ''}]`
+      : 'No payload'
 
   return (
-    <div style={{ marginBottom: '6px' }}>
+    <div
+      className="encode-card"
+      style={{
+        marginBottom: '10px',
+        animationDelay: `${index * 70}ms`,
+        background: '#FBF5E6',
+        border: `1.5px solid ${open ? `${roleColor}66` : 'rgba(43,39,34,0.22)'}`,
+        borderRadius: '12px 8px 13px 8px',
+        boxShadow: open ? `1.5px 2px 0 ${roleColor}26` : '1.5px 2px 0 rgba(43,39,34,0.10)',
+        overflow: 'hidden',
+        transition: 'border-color 0.18s, box-shadow 0.18s',
+      }}
+    >
       {/* ── header ── */}
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={onToggle}
         style={{
           width: '100%', display: 'flex',
           alignItems: 'center', justifyContent: 'space-between',
-          padding: '9px 12px',
-          background: open ? 'rgba(52,227,255,0.07)' : 'rgba(52,227,255,0.02)',
-          border: `1px solid ${open ? 'rgba(52,227,255,0.28)' : 'rgba(52,227,255,0.1)'}`,
-          borderRadius: open ? '4px 4px 0 0' : '4px',
-          cursor: 'pointer', outline: 'none', transition: 'all 0.15s',
+          padding: '9px 12px', gap: '8px',
+          background: open ? `${roleColor}0E` : 'transparent',
+          border: 'none', borderRadius: 0,
+          cursor: 'pointer', outline: 'none', transition: 'background 0.15s',
+          textAlign: 'left',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '11px', color: COLORS.TEXT_DIM, minWidth: '18px',
@@ -306,30 +330,31 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
             {String(index + 1).padStart(2, '0')}
           </span>
           <span style={{
-            fontFamily: "'Orbitron', sans-serif",
-            fontSize: '11px', fontWeight: 700,
-            letterSpacing: '0.14em', color: COLORS.CYAN,
+            fontSize: '15px', fontWeight: 700, color: roleColor,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {(entry.planet_id ?? `HOP ${index + 1}`).toUpperCase()}
+            {(entry.planet_id ?? `Hop ${index + 1}`)}
           </span>
-          <span style={{
-            fontSize: '12px', color: roleColor,
-            padding: '1px 7px',
-            border: `1.5px solid ${roleColor}`,
-            borderRadius: '6px 4px 7px 4px',
-            textTransform: 'uppercase',
-          }}>
-            {hop?.role ?? ''}
-          </span>
+          {roleLabel && (
+            <span style={{
+              fontSize: '11px', color: roleColor,
+              padding: '0 6px',
+              border: `1.5px solid ${roleColor}`,
+              borderRadius: '6px 4px 7px 4px',
+              whiteSpace: 'nowrap',
+            }}>
+              {roleLabel}
+            </span>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <span style={{
             fontSize: '12px', color: COLORS.MAGENTA,
             padding: '1px 8px',
             border: `1.5px solid ${COLORS.MAGENTA}`,
-            borderRadius: '6px 4px 7px 4px',
+            borderRadius: '6px 4px 7px 4px', whiteSpace: 'nowrap',
           }}>
-            BASE-{entry.codex ?? '?'}
+            base-{entry.codex ?? '?'}
           </span>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
@@ -343,13 +368,22 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
         </div>
       </button>
 
+      {/* ── collapsed-state summary (the gist, no click needed) ── */}
+      {!open && (
+        <div style={{
+          padding: '0 12px 9px 39px',
+          fontSize: '13px', color: COLORS.TEXT_DIM,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {summary}
+        </div>
+      )}
+
       {/* ── animated collapse body ── */}
       <CollapseBody open={open}>
         <div className="hop-open" style={{
           background: '#FBF5E6',
-          border: '1.5px solid rgba(43,39,34,0.4)',
-          borderTop: 'none',
-          borderRadius: '0 0 8px 8px',
+          borderTop: '1px dashed rgba(43,39,34,0.18)',
         }}>
           <TabBar active={tab} onChange={setTab} />
 
@@ -454,6 +488,17 @@ export function EncodingPanel() {
     return m
   }, [hopLog])
 
+  // Accordion: only one card is open at a time, so the panel stays short and
+  // fits in view. Opening a card collapses whichever was open before it.
+  // Re-seeds to the first hop whenever a new translation arrives.
+  const [openIdx, setOpenIdx] = useState<number | null>(0)
+  const signature = (translation as any[]).map(e => e.planet_id).join('>')
+  useEffect(() => {
+    setOpenIdx(translation.length > 0 ? 0 : null)
+  }, [signature]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleOne = (i: number) => setOpenIdx(prev => (prev === i ? null : i))
+
   return (
     <div>
       <div className="panel-header">
@@ -468,7 +513,7 @@ export function EncodingPanel() {
         {translation.length === 0 ? (
           <div style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '12px', color: COLORS.TEXT_DIM, letterSpacing: '0.08em',
+            fontSize: '13px', color: COLORS.TEXT_DIM, letterSpacing: '0.04em',
           }}>
             No translation yet — send a message first.
           </div>
@@ -480,6 +525,8 @@ export function EncodingPanel() {
                 entry={entry}
                 index={i}
                 hop={hopMap.get(entry.planet_id)}
+                open={openIdx === i}
+                onToggle={() => toggleOne(i)}
               />
             ))}
           </div>

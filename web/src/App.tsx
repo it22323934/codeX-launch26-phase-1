@@ -76,6 +76,7 @@ export default function App() {
   const fullMode      = !mobile && panelMode === 'full'
   const railVisible   = !mobile && panelMode !== 'collapsed'
 
+  // Vertical stack — used in the normal side rail and the mobile drawer.
   const panels = (
     <>
       <div className="hud-panel panel-boot" style={{ animationDelay: '0ms',   flexShrink: 0, marginBottom: '8px' }}>
@@ -91,6 +92,30 @@ export default function App() {
         <EncodingPanel />
       </div>
     </>
+  )
+
+  // Full-screen layout — Controls + Latency on the top row, Route steps
+  // spanning beneath them (left region), Number-base translation down the
+  // right. Nested flexboxes, so no panel overlaps the way a grid span did.
+  const fullPanels = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-start' }}>
+      <div style={{ flex: '2 1 520px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-start' }}>
+          <div className="hud-panel panel-boot" style={{ flex: '1 1 240px', minWidth: 0, animationDelay: '0ms' }}>
+            <Toolbar />
+          </div>
+          <div className="hud-panel panel-boot" style={{ flex: '1 1 240px', minWidth: 0, animationDelay: '120ms' }}>
+            <TelemetryPanel />
+          </div>
+        </div>
+        <div className="hud-panel panel-boot" style={{ animationDelay: '240ms' }}>
+          <HopLogPanel />
+        </div>
+      </div>
+      <div className="hud-panel panel-boot" style={{ flex: '1 1 300px', minWidth: 0, animationDelay: '360ms' }}>
+        <EncodingPanel />
+      </div>
+    </div>
   )
 
   return (
@@ -232,13 +257,17 @@ export default function App() {
                 </button>
               )}
             </div>
-            <div className="panel-grow" key={panelMode} style={{
-              flex: 1, overflowY: 'auto', padding: '8px',
-              ...(fullMode
-                ? { columns: '400px', columnGap: '8px' }
-                : { display: 'flex', flexDirection: 'column' }),
-            }}>
-              {panels}
+            {/* Full screen lays panels out in the two-region layout; normal
+                mode is a simple vertical stack in the side rail. */}
+            <div
+              className="panel-grow"
+              key={panelMode}
+              style={{
+                flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px',
+                ...(fullMode ? {} : { display: 'flex', flexDirection: 'column' }),
+              }}
+            >
+              {fullMode ? fullPanels : panels}
             </div>
           </aside>
         )}

@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useStore } from '../store'
-import { COLORS } from '../constants/visual'
+import { COLORS, INK } from '../constants/visual'
+import { TIME_UNITS, formatInUnit, humanizeDuration, type TimeUnitKey } from '../utils/time'
 
 const COMPONENTS: [string, keyof typeof dummyLat, string, string][] = [
   ['VOID',       'void_ms',       COLORS.CYAN,    '//  vacuum laser propagation'],
@@ -54,8 +56,71 @@ function StackedBar({ lat }: { lat: typeof dummyLat }) {
   )
 }
 
+// ── Time-unit stepper ─────────────────────────────────────────────────────────
+// A spinner-style control: press ▲ / ▼ to cycle the time metric (Auto → ms →
+// seconds → … → years) instead of opening a dropdown list.
+
+function ArrowBtn({ dir, onClick }: { dir: 'up' | 'down'; onClick: () => void }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      title={dir === 'up' ? 'Previous unit' : 'Next unit'}
+      style={{
+        flex: 1, width: '26px', padding: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: hov ? COLORS.CYAN : 'transparent',
+        color: hov ? '#FBF5E6' : COLORS.TEXT_HI,
+        border: 'none',
+        borderBottom: dir === 'up' ? `1.5px solid ${INK.LINE}` : 'none',
+        cursor: 'pointer', outline: 'none',
+        fontSize: '9px', lineHeight: 1, transition: 'background 0.12s',
+      }}
+    >
+      {dir === 'up' ? '▲' : '▼'}
+    </button>
+  )
+}
+
+function UnitStepper({ unit, onChange }: {
+  unit: TimeUnitKey; onChange: (u: TimeUnitKey) => void
+}) {
+  const idx = Math.max(0, TIME_UNITS.findIndex(u => u.key === unit))
+  const current = TIME_UNITS[idx]
+  const cycle = (dir: 1 | -1) => {
+    const n = TIME_UNITS.length
+    onChange(TIME_UNITS[(idx + dir + n) % n].key)
+  }
+  return (
+    <div
+      title="Use the arrows to change the time unit"
+      style={{
+        display: 'inline-flex', alignItems: 'stretch', width: 'fit-content',
+        border: `2px solid ${INK.LINE}`,
+        borderRadius: '8px 6px 9px 6px',
+        background: INK.PAPER_INPUT, overflow: 'hidden',
+      }}
+    >
+      <span style={{
+        display: 'flex', alignItems: 'center',
+        padding: '4px 10px', minWidth: '96px',
+        fontSize: '14px', fontWeight: 700, color: COLORS.TEXT_HI,
+      }}>
+        {current.label}
+      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', borderLeft: `1.5px solid ${INK.LINE}` }}>
+        <ArrowBtn dir="up"   onClick={() => cycle(-1)} />
+        <ArrowBtn dir="down" onClick={() => cycle(1)}  />
+      </div>
+    </div>
+  )
+}
+
 export function TelemetryPanel() {
   const lat = useStore(s => s.route?.latency)
+  const [unit, setUnit] = useState<TimeUnitKey>('auto')
 
   return (
     <div>
@@ -116,28 +181,34 @@ export function TelemetryPanel() {
               margin: '10px 0 8px',
             }} />
 
-            {/* Total */}
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <span style={{
-                fontFamily: "'Orbitron', sans-serif",
-                fontSize: '14px', fontWeight: 700,
-                letterSpacing: '0.04em', color: COLORS.TEXT_HI,
-              }}>Total time</span>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{
+            {/* Total — with a selectable time unit (ms → years) */}
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{
+                  fontSize: '15px', fontWeight: 700,
+                  color: COLORS.TEXT_HI,
+                }}>Total time</span>
+                <UnitStepper unit={unit} onChange={setUnit} />
+              </div>
+              <div style={{ textAlign: 'right', minWidth: 0 }}>
+                <div key={`${unit}-${lat.total_ms}`} className="latency-total" style={{
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: '20px', fontWeight: 700,
-                  color: COLORS.CYAN,
-                  lineHeight: 1,
+                  color: COLORS.CYAN, lineHeight: 1.05,
+                  wordBreak: 'break-word',
                 }}>
-                  {lat.total_ms.toFixed(2)}
-                  <span style={{ fontSize: '10px', color: COLORS.TEXT_DIM, fontWeight: 400 }}> ms</span>
+                  {formatInUnit(lat.total_ms, unit)}
                 </div>
+                {/* Always keep the precise ms and an auto reading for reference */}
                 <div style={{
                   fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '9px', color: COLORS.TEXT_DIM, marginTop: '2px',
+                  fontSize: '11px', color: COLORS.TEXT_DIM, marginTop: '4px',
                 }}>
-                  {(lat.total_ms / 1000).toFixed(6)} s
+                  {lat.total_ms.toLocaleString(undefined, { maximumFractionDigits: 2 })} ms
+                  {unit !== 'auto' && ` · ${humanizeDuration(lat.total_ms)}`}
                 </div>
               </div>
             </div>
