@@ -1,25 +1,22 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useStore } from '../store'
-import { postRoute, resetUniverse, postConfig } from '../api'
-import { COLORS, ANIM } from '../constants/visual'
+import { postRoute, resetUniverse, uploadConfig } from '../api'
+import { COLORS, INK, ANIM } from '../constants/visual'
 
 const fieldLabel: React.CSSProperties = {
-  fontFamily: "'Orbitron', sans-serif",
-  fontSize: '7px', fontWeight: 700,
-  letterSpacing: '0.18em', color: COLORS.TEXT_DIM,
-  display: 'block', marginBottom: '5px',
+  fontSize: '13px', fontWeight: 700,
+  color: COLORS.TEXT_DIM,
+  display: 'block', marginBottom: '4px',
 }
 
 const fieldBase: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(5,6,10,0.8)',
+  background: INK.PAPER_INPUT,
   color: COLORS.TEXT_HI,
-  border: `1px solid rgba(52,227,255,0.15)`,
-  borderRadius: '3px',
+  border: `2px solid ${INK.LINE}`,
+  borderRadius: '8px 6px 9px 6px',
   padding: '7px 10px',
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '11px',
-  letterSpacing: '0.04em',
+  fontSize: '14px',
   cursor: 'pointer',
   transition: 'border-color 0.2s',
 }
@@ -33,57 +30,55 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function PrimaryBtn({ onClick, loading, disabled, children }: {
-  onClick: () => void; loading?: boolean; disabled?: boolean; children: React.ReactNode
+function PrimaryBtn({ onClick, loading, disabled, title, children }: {
+  onClick: () => void; loading?: boolean; disabled?: boolean; title?: string; children: React.ReactNode
 }) {
   const [hov, setHov] = useState(false)
   return (
     <button
-      onClick={onClick} disabled={disabled}
+      onClick={onClick} disabled={disabled} title={title}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
         flex: 1,
         padding: '9px 6px',
-        background: disabled ? 'transparent' : hov ? `rgba(52,227,255,0.18)` : `rgba(52,227,255,0.08)`,
-        color: disabled ? COLORS.STEEL : COLORS.CYAN,
-        border: `1px solid ${disabled ? COLORS.STEEL : hov ? COLORS.CYAN : 'rgba(52,227,255,0.35)'}`,
-        borderRadius: '3px',
-        fontFamily: "'Orbitron', sans-serif",
-        fontSize: '8px', fontWeight: 700, letterSpacing: '0.14em',
+        background: disabled ? '#EDE5D2' : hov ? COLORS.CYAN : INK.PAPER_CARD,
+        color: disabled ? COLORS.STEEL : hov ? '#FBF5E6' : COLORS.CYAN,
+        border: `2px solid ${disabled ? COLORS.STEEL : COLORS.CYAN}`,
+        borderRadius: '10px 7px 11px 7px',
+        fontSize: '15px', fontWeight: 700,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        boxShadow: (!disabled && hov) ? `0 0 16px rgba(52,227,255,0.25)` : 'none',
-        transition: 'all 0.15s',
+        boxShadow: disabled ? 'none' : '2px 2px 0 rgba(43,39,34,0.2)',
+        transition: 'all 0.12s',
         outline: 'none',
         whiteSpace: 'nowrap',
       }}
     >
-      {loading ? '[ ROUTING... ]' : children}
+      {loading ? 'Sending...' : children}
     </button>
   )
 }
 
-function SecondaryBtn({ onClick, color, active, children }: {
-  onClick: () => void; color: string; active?: boolean; children: React.ReactNode
+function SecondaryBtn({ onClick, color, active, title, children }: {
+  onClick: () => void; color: string; active?: boolean; title?: string; children: React.ReactNode
 }) {
   const [hov, setHov] = useState(false)
   return (
     <button
-      onClick={onClick}
+      onClick={onClick} title={title}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
         flex: 1,
         padding: '9px 6px',
-        background: (active || hov) ? `${color}18` : 'transparent',
-        color: active ? color : hov ? color : COLORS.TEXT_DIM,
-        border: `1px solid ${active ? color : hov ? `${color}88` : 'rgba(58,74,99,0.5)'}`,
-        borderRadius: '3px',
-        fontFamily: "'Orbitron', sans-serif",
-        fontSize: '8px', fontWeight: 700, letterSpacing: '0.12em',
+        background: active ? color : hov ? `${color}22` : INK.PAPER_CARD,
+        color: active ? '#FBF5E6' : color,
+        border: `2px solid ${active ? color : INK.LINE}`,
+        borderRadius: '10px 7px 11px 7px',
+        fontSize: '15px', fontWeight: 700,
         cursor: 'pointer',
-        boxShadow: active ? `0 0 12px ${color}44` : 'none',
-        transition: 'all 0.15s',
+        boxShadow: '2px 2px 0 rgba(43,39,34,0.2)',
+        transition: 'all 0.12s',
         outline: 'none',
         whiteSpace: 'nowrap',
       }}
@@ -97,7 +92,7 @@ export function Toolbar() {
   const {
     snapshot, originId, destinationId, payload, killMode,
     setOriginId, setDestinationId, setPayload,
-    setRoute, setKillMode, setSnapshot,
+    setRoute, setKillMode, setSnapshot, setTransmitError,
   } = useStore()
 
   const [loading,      setLoading]      = useState(false)
@@ -115,18 +110,23 @@ export function Toolbar() {
   const handleTransmit = useCallback(async () => {
     if (!originId || !destinationId || loading) return
     setLoading(true)
+    setTransmitError(null)
     const result = await postRoute(originId, destinationId, payload)
     setLoading(false)
     if (result) {
       setRoute(result)
       if (!result.deliverable) triggerGlitch()
+    } else {
+      // Network failure or engine error (e.g. router not reachable).
+      setTransmitError('Transmission failed — engine unreachable or route rejected.')
+      triggerGlitch()
     }
-  }, [originId, destinationId, payload, loading, setRoute, triggerGlitch])
+  }, [originId, destinationId, payload, loading, setRoute, setTransmitError, triggerGlitch])
 
   const handleReset = useCallback(async () => {
     const snap = await resetUniverse()
-    if (snap) { setSnapshot(snap); setRoute(null) }
-  }, [setSnapshot, setRoute])
+    if (snap) { setSnapshot(snap); setRoute(null); setTransmitError(null) }
+  }, [setSnapshot, setRoute, setTransmitError])
 
   const handleLoadConfig = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -137,11 +137,11 @@ export function Toolbar() {
     reader.onload = async (ev) => {
       try {
         const cfg = JSON.parse(ev.target?.result as string)
-        const snap = await postConfig(cfg)
-        if (snap) { setSnapshot(snap); setRoute(null) }
-        else setCfgError('Server rejected config')
+        const res = await uploadConfig(cfg)
+        if (res.ok) { setSnapshot(res.snapshot); setRoute(null) }
+        else setCfgError(res.error)
       } catch {
-        setCfgError('Invalid JSON file')
+        setCfgError('Not valid JSON — check the file contents.')
       } finally {
         setLoadingCfg(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
@@ -164,44 +164,44 @@ export function Toolbar() {
       {/* Panel header */}
       <div className="panel-header">
         <div className="panel-header-dot" />
-        <span className="panel-header-title">MISSION CONTROL</span>
-        <span className="panel-header-badge">TX / RX</span>
+        <span className="panel-header-title">Controls</span>
+        <span className="panel-header-badge">send a message</span>
       </div>
 
       <div style={{ padding: '12px 14px 14px' }}>
         {/* Origin + Destination side by side */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '2px' }}>
-          <Field label="ORIGIN">
+          <Field label="From">
             <select
               style={fieldBase}
               value={originId}
               onChange={e => setOriginId(e.target.value)}
             >
-              <option value="">-- SELECT --</option>
+              <option value="">Choose a planet</option>
               {nodes.map(n => (
                 <option key={n.id} value={n.id}>
-                  {n.id.toUpperCase()}{!n.alive ? ' [DEAD]' : ''}
+                  {n.id}{!n.alive ? ' (dead)' : ''}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="DESTINATION">
+          <Field label="To">
             <select
               style={fieldBase}
               value={destinationId}
               onChange={e => setDestinationId(e.target.value)}
             >
-              <option value="">-- SELECT --</option>
+              <option value="">Choose a planet</option>
               {nodes.map(n => (
                 <option key={n.id} value={n.id}>
-                  {n.id.toUpperCase()}{!n.alive ? ' [DEAD]' : ''}
+                  {n.id}{!n.alive ? ' (dead)' : ''}
                 </option>
               ))}
             </select>
           </Field>
         </div>
 
-        <Field label="PAYLOAD">
+        <Field label="Message">
           <input
             type="text"
             style={{ ...fieldBase, cursor: 'text' }}
@@ -214,18 +214,23 @@ export function Toolbar() {
 
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-          <PrimaryBtn onClick={handleTransmit} loading={loading} disabled={!canTransmit}>
-            [ TRANSMIT ]
+          <PrimaryBtn
+            onClick={handleTransmit} loading={loading} disabled={!canTransmit}
+            title="Find the fastest route and animate the message (or press Enter)"
+          >
+            Send
           </PrimaryBtn>
-          <SecondaryBtn onClick={handleReset} color={COLORS.STEEL}>
-            [ RESET ]
+          <SecondaryBtn onClick={handleReset} color={COLORS.STEEL}
+            title="Bring every planet and link back to life">
+            Reset
           </SecondaryBtn>
           <SecondaryBtn
             onClick={() => setKillMode(!killMode)}
             color={COLORS.MAGENTA}
             active={killMode}
+            title="Turn on break mode, then click a planet or link on the map to break it"
           >
-            {killMode ? '[ KILL:ON ]' : '[ KILL:OFF ]'}
+            {killMode ? 'Break: on' : 'Break: off'}
           </SecondaryBtn>
         </div>
 
@@ -241,7 +246,7 @@ export function Toolbar() {
             fontSize: '8px', letterSpacing: '0.06em',
             color: COLORS.MAGENTA,
           }}>
-            Click a planet or link to toggle its state
+            Click a planet or link on the map to break it
           </div>
         )}
 
@@ -265,26 +270,23 @@ export function Toolbar() {
               width: '100%',
               padding: '7px 6px',
               background: 'transparent',
-              color: loadingCfg ? COLORS.TEXT_DIM : COLORS.STEEL,
-              border: `1px solid ${loadingCfg ? 'rgba(58,74,99,0.3)' : 'rgba(58,74,99,0.45)'}`,
-              borderRadius: '3px',
-              fontFamily: "'Orbitron', sans-serif",
-              fontSize: '7px', fontWeight: 700, letterSpacing: '0.14em',
+              color: loadingCfg ? COLORS.TEXT_DIM : COLORS.TEXT_HI,
+              border: `2px solid ${INK.LINE}`,
+              borderRadius: '9px 7px 10px 7px',
+              fontSize: '13px', fontWeight: 700,
               cursor: loadingCfg ? 'not-allowed' : 'pointer',
               outline: 'none',
               transition: 'all 0.15s',
             }}
           >
-            {loadingCfg ? '[ LOADING... ]' : '[ LOAD universe-config.json ]'}
+            {loadingCfg ? 'Loading...' : 'Load a universe file...'}
           </button>
           {cfgError && (
             <div style={{
               marginTop: '5px',
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '8px', color: COLORS.MAGENTA,
-              letterSpacing: '0.05em',
+              fontSize: '12px', color: COLORS.MAGENTA,
             }}>
-              ⚠ {cfgError}
+              Couldn't load: {cfgError}
             </div>
           )}
         </div>

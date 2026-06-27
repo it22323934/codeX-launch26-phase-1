@@ -7,10 +7,8 @@ import { COLORS } from '../constants/visual'
 function Label({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontFamily: "'Orbitron', sans-serif",
-      fontSize: '7px', fontWeight: 700,
-      letterSpacing: '0.16em', color: COLORS.TEXT_DIM,
-      marginBottom: '5px',
+      fontSize: '12px', fontWeight: 700,
+      color: COLORS.TEXT_DIM, marginBottom: '4px',
     }}>
       {children}
     </div>
@@ -151,8 +149,8 @@ function TabBar({
   active: 'codex' | 'math'; onChange: (t: 'codex' | 'math') => void
 }) {
   const tabs: Array<{ key: 'codex' | 'math'; label: string }> = [
-    { key: 'codex', label: 'CODEX' },
-    { key: 'math',  label: 'LATENCY MATH' },
+    { key: 'codex', label: 'Digits' },
+    { key: 'math',  label: 'Timing' },
   ]
   return (
     <div style={{
@@ -313,10 +311,10 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
       {/* ── expanded body ── */}
       {open && (
         <div style={{
-          background: 'rgba(5,6,10,0.7)',
-          border: '1px solid rgba(52,227,255,0.12)',
+          background: '#FBF5E6',
+          border: '1.5px solid rgba(43,39,34,0.4)',
           borderTop: 'none',
-          borderRadius: '0 0 4px 4px',
+          borderRadius: '0 0 8px 8px',
         }}>
           <TabBar active={tab} onChange={setTab} />
 
@@ -327,7 +325,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
               <>
                 {entry.received_as != null && (
                   <>
-                    <Label>RX — BASE-{entry.codex}</Label>
+                    <Label>Received as base-{entry.codex}</Label>
                     <CodeBlock color={COLORS.CYAN}>
                       [{(entry.received_as as string[]).join(', ')}]
                     </CodeBlock>
@@ -336,7 +334,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
 
                 {entry.ascii != null && (
                   <>
-                    <Label>ASCII INTERNAL</Label>
+                    <Label>Decoded text</Label>
                     <CodeBlock color={COLORS.TEXT_HI}>
                       "{entry.ascii}"
                     </CodeBlock>
@@ -345,7 +343,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
 
                 {entry.sent_as != null && (
                   <>
-                    <Label>TX — NEXT BASE</Label>
+                    <Label>Re-sent in the next base</Label>
                     <CodeBlock color={COLORS.MAGENTA}>
                       [{(entry.sent_as as string[]).join(', ')}]
                     </CodeBlock>
@@ -354,7 +352,7 @@ function HopCard({ entry, index, hop }: { entry: any; index: number; hop?: any }
 
                 {entry.binary_stream != null && (
                   <>
-                    <Label>BINARY STREAM</Label>
+                    <Label>Bits on the wire</Label>
                     <div style={{
                       fontFamily: "'JetBrains Mono', monospace",
                       fontSize: '8.5px', color: COLORS.TEXT_DIM,
@@ -425,9 +423,9 @@ export function EncodingPanel() {
     <div>
       <div className="panel-header">
         <div className="panel-header-dot" />
-        <span className="panel-header-title">CODEX TRANSLATION</span>
+        <span className="panel-header-title">Number-base translation</span>
         <span className="panel-header-badge">
-          {translation.length > 0 ? `${translation.length - 1} HOPS` : '--'}
+          {translation.length > 0 ? `${translation.length - 1} hops` : '--'}
         </span>
       </div>
 
@@ -437,7 +435,7 @@ export function EncodingPanel() {
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '10px', color: COLORS.TEXT_DIM, letterSpacing: '0.08em',
           }}>
-            [ NO TRANSLATION LOG ]
+            No translation yet — send a message first.
           </div>
         ) : (
           <div style={{ maxHeight: '520px', overflowY: 'auto', paddingRight: '2px' }}>

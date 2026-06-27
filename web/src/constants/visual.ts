@@ -1,11 +1,28 @@
+// Hand-drawn sketchbook palette. Token names are kept from the old neon theme
+// so every COLORS.* reference across the app re-themes at once:
+//   VOID_BLACK / PANEL_BLACK = paper tones (backgrounds)
+//   CYAN  = blue ink (primary accent / active route)
+//   MAGENTA = red ink (alarm / dead)
+//   STEEL = pencil grey (dormant / secondary lines)
+//   TEXT_HI = dark ink (primary text)   TEXT_DIM = faded pencil (secondary text)
 export const COLORS = Object.freeze({
-  VOID_BLACK:  '#05060A',
-  PANEL_BLACK: '#0A0E16',
-  CYAN:        '#34E3FF',
-  MAGENTA:     '#FF2D9B',
-  STEEL:       '#3A4A63',
-  TEXT_HI:     '#DCEBFF',
-  TEXT_DIM:    '#6F8099',
+  VOID_BLACK:  '#ECE3CE',   // map / app paper
+  PANEL_BLACK: '#FBF5E6',   // panel card paper (creamier)
+  CYAN:        '#2E5E8C',   // blue ink (primary / active route)
+  MAGENTA:     '#C0392B',   // red ink (alarm / dead)
+  STEEL:       '#9C9176',   // pencil grey (dormant)
+  TEXT_HI:     '#2B2722',   // dark ink (primary text)
+  TEXT_DIM:    '#7B7059',   // faded pencil (secondary text)
+})
+
+// Extra named inks for the sketch theme (used where a raw hex was hardcoded).
+export const INK = Object.freeze({
+  PAPER:       '#ECE3CE',   // base paper
+  PAPER_CARD:  '#FBF5E6',   // panel paper
+  PAPER_INPUT: '#FFFDF5',   // input/field paper (near white)
+  LINE:        '#2B2722',   // pen outline
+  PENCIL:      '#9C9176',   // light pencil line
+  HIGHLIGHT:   '#E0A33D',   // amber highlighter (route emphasis)
 })
 
 export const SCENE = Object.freeze({

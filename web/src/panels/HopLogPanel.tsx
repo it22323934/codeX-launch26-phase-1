@@ -31,8 +31,8 @@ export function HopLogPanel() {
     <div>
       <div className="panel-header">
         <div className="panel-header-dot" />
-        <span className="panel-header-title">HOP LOG</span>
-        <span className="panel-header-badge">{hops.length > 0 ? `${hops.length} NODES` : '--'}</span>
+        <span className="panel-header-title">Route steps</span>
+        <span className="panel-header-badge">{hops.length > 0 ? `${hops.length} stops` : '--'}</span>
       </div>
 
       <div style={{ padding: '10px 14px' }}>
@@ -41,14 +41,14 @@ export function HopLogPanel() {
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '10px', color: COLORS.TEXT_DIM, letterSpacing: '0.08em',
           }}>
-            [ NO ROUTE COMPUTED ]
+            No route yet — send a message first.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'auto' }}>
               <thead>
                 <tr>
-                  {['PLANET','ROLE','RECV','SEND','TOWERS','FIBER ms','VOID km','VOID ms'].map(h => (
+                  {['Planet','Role','In','Out','Towers','Fiber ms','Void km','Void ms'].map(h => (
                     <th key={h} style={{
                       fontFamily: "'Orbitron', sans-serif",
                       fontSize: '6px', fontWeight: 700,

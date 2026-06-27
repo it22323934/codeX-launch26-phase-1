@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import routes as routes_module
 from app.api.routes import router, load_default_universe
 from app.api.ws import manager
 from app.config import get_config_path
@@ -43,7 +44,12 @@ app.include_router(router)
 
 @app.get("/health")
 async def health() -> dict:
-    return {"ok": True, "config": str(get_config_path())}
+    """Liveness + config status. ``ok`` is False when no valid universe loaded."""
+    return {
+        "ok": routes_module._universe is not None,
+        "config": str(get_config_path()),
+        "error": routes_module._load_error,
+    }
 
 
 @app.websocket("/ws")

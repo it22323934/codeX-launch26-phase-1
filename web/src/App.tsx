@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from './store'
-import { fetchUniverse, connectWS } from './api'
-import { COLORS } from './constants/visual'
+import { loadUniverse, connectWS } from './api'
+import { COLORS, INK } from './constants/visual'
 import { SceneCanvas }    from './three/SceneCanvas'
 import { Toolbar }        from './panels/Toolbar'
 import { TelemetryPanel } from './panels/TelemetryPanel'
@@ -10,13 +10,55 @@ import { EncodingPanel }  from './panels/EncodingPanel'
 import { StatusBar }      from './panels/StatusBar'
 
 const PANEL_W = 400
+const TILT_MAX_DEG = 5  // gentle parallax, like a sketch on a desk
+
+type PanelMode = 'normal' | 'collapsed' | 'full'
 
 export default function App() {
-  const { setSnapshot, setRoute, setBooted } = useStore()
-  const [mobile, setMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth < 768 : false
-  )
+  const setSnapshot      = useStore(s => s.setSnapshot)
+  const setRoute         = useStore(s => s.setRoute)
+  const setBooted        = useStore(s => s.setBooted)
+  const connection       = useStore(s => s.connection)
+  const loadError        = useStore(s => s.loadError)
+  const wsConnected      = useStore(s => s.wsConnected)
+  const snapshot         = useStore(s => s.snapshot)
+  const route            = useStore(s => s.route)
+  const killMode         = useStore(s => s.killMode)
+  const setConnection    = useStore(s => s.setConnection)
+  const setLoadError     = useStore(s => s.setLoadError)
+  const setWsConnected   = useStore(s => s.setWsConnected)
+  const setTransmitError = useStore(s => s.setTransmitError)
+
+  const [mobile, setMobile]         = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [showLegend, setShowLegend] = useState(false)
+  const [panelMode, setPanelMode]   = useState<PanelMode>('normal')
+  const tiltRef = useRef<HTMLDivElement>(null)
+
+  // ── Initial load + retry ───────────────────────────────────────────────────
+  const boot = useCallback(async () => {
+    setConnection('connecting')
+    setLoadError(null)
+    const res = await loadUniverse()
+    if (res.ok) {
+      setSnapshot(res.snapshot)
+      setConnection('online')
+    } else {
+      setLoadError(res.error)
+      setConnection('error')
+    }
+  }, [setConnection, setLoadError, setSnapshot])
+
+  useEffect(() => {
+    boot()
+    const disconnect = connectWS(
+      snap   => { setSnapshot(snap); setConnection('online') },
+      result => { setRoute(result); setTransmitError(null) },
+      ok     => setWsConnected(ok),
+    )
+    const t = setTimeout(() => setBooted(true), 60)
+    return () => { disconnect(); clearTimeout(t) }
+  }, [boot, setSnapshot, setRoute, setBooted, setConnection, setWsConnected, setTransmitError])
 
   useEffect(() => {
     const onResize = () => setMobile(window.innerWidth < 768)
@@ -24,111 +66,196 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  useEffect(() => {
-    fetchUniverse().then(snap => { if (snap) setSnapshot(snap) })
-    const disconnect = connectWS(
-      snap   => setSnapshot(snap),
-      result => setRoute(result)
-    )
-    const t = setTimeout(() => setBooted(true), 60)
-    return () => { disconnect(); clearTimeout(t) }
-  }, [setSnapshot, setRoute, setBooted])
+  // ── Parallax tilt ──────────────────────────────────────────────────────────
+  const onStageMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = tiltRef.current
+    if (!el) return
+    const r = e.currentTarget.getBoundingClientRect()
+    const px = (e.clientX - r.left) / r.width - 0.5
+    const py = (e.clientY - r.top) / r.height - 0.5
+    el.style.setProperty('--holo-ry', `${(px * TILT_MAX_DEG).toFixed(2)}deg`)
+    el.style.setProperty('--holo-rx', `${(-py * TILT_MAX_DEG).toFixed(2)}deg`)
+  }, [])
+  const onStageLeave = useCallback(() => {
+    const el = tiltRef.current
+    if (!el) return
+    el.style.setProperty('--holo-ry', '0deg')
+    el.style.setProperty('--holo-rx', '0deg')
+  }, [])
+
+  // ── Top-bar status ─────────────────────────────────────────────────────────
+  const total = snapshot?.nodes.length ?? 0
+  const aliveCount = snapshot?.nodes.filter(n => n.alive).length ?? 0
+  const conn =
+    connection === 'error'        ? { c: COLORS.MAGENTA, t: 'Offline' }
+    : connection === 'connecting' ? { c: COLORS.STEEL,   t: 'Connecting' }
+    : wsConnected                 ? { c: COLORS.CYAN,    t: 'Connected' }
+    :                               { c: '#B07A1E',      t: 'Reconnecting' }
+
+  const fullMode      = !mobile && panelMode === 'full'
+  const railVisible   = !mobile && panelMode !== 'collapsed'
 
   const panels = (
     <>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '0ms',   borderRadius: '4px', flexShrink: 0 }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '0ms',   flexShrink: 0 }}>
         <Toolbar />
       </div>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '120ms', borderRadius: '4px', flexShrink: 0 }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '120ms', flexShrink: 0 }}>
         <TelemetryPanel />
       </div>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '240ms', borderRadius: '4px', flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '240ms', flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>
         <HopLogPanel />
       </div>
-      <div className="hud-panel panel-boot" style={{ animationDelay: '360ms', borderRadius: '4px', flexShrink: 0 }}>
+      <div className="hud-panel panel-boot" style={{ animationDelay: '360ms', flexShrink: 0 }}>
         <EncodingPanel />
       </div>
     </>
   )
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      width: '100vw', height: '100vh',
-      background: COLORS.VOID_BLACK, overflow: 'hidden',
-    }}>
-      {/* Top bar */}
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* ── Top bar (a strip of tape across the notebook) ─────────────────── */}
       <div style={{
-        height: '36px', flexShrink: 0,
-        borderBottom: `1px solid rgba(52,227,255,0.1)`,
-        background: 'rgba(8,12,20,0.9)',
-        display: 'flex', alignItems: 'center',
-        padding: '0 16px', gap: '12px',
+        height: '42px', flexShrink: 0,
+        borderBottom: `2px solid ${INK.LINE}`, background: '#F1E7CF',
+        display: 'flex', alignItems: 'center', padding: '0 16px', gap: '12px',
       }}>
-        <div style={{
-          width: 8, height: 8, borderRadius: '50%',
-          background: COLORS.CYAN, boxShadow: `0 0 10px ${COLORS.CYAN}`,
+        <div className={conn.t === 'Connected' ? 'dot-active' : ''} style={{
+          width: 9, height: 9, borderRadius: '50%',
+          background: conn.c, border: `1.5px solid ${INK.LINE}`,
         }} />
-        <span style={{
-          fontFamily: "'Orbitron', sans-serif",
-          fontSize: '11px', fontWeight: 900, letterSpacing: '0.25em',
-          color: COLORS.CYAN,
-        }}>
-          RELIC RING PROTOCOL
+        <span className="sketch-title" style={{ fontSize: '24px', color: INK.LINE, lineHeight: 1 }}>
+          Relic Ring Protocol
         </span>
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '9px', color: COLORS.TEXT_DIM, letterSpacing: '0.1em',
-        }}>
-          // ZETA-26 INTERPLANETARY ROUTING ENGINE
+        <span style={{ fontSize: '13px', color: COLORS.TEXT_DIM }}>
+          plot a message hop-by-hop across the planets
         </span>
         <div style={{ flex: 1 }} />
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '8px', color: COLORS.TEXT_DIM, letterSpacing: '0.08em',
-        }}>
-          SYS:ONLINE &nbsp;|&nbsp; NODES:ACTIVE
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: conn.c }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: conn.c, border: `1px solid ${INK.LINE}`, display: 'inline-block' }} />
+          {conn.t}
+        </span>
+        <span style={{ fontSize: '13px', color: COLORS.TEXT_DIM }}>
+          {aliveCount} of {total} planets live
         </span>
       </div>
 
-      {/* Main area */}
+      {/* ── Main area ────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {/* 3D/2D Canvas */}
-        <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-          <SceneCanvas />
+        {/* Sketch map */}
+        {!fullMode && (
+          <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+            <div className="holo-stage" onMouseMove={onStageMove} onMouseLeave={onStageLeave}>
+              <div className="holo-tilt" ref={tiltRef}>
+                <SceneCanvas />
+              </div>
+              <div className="holo-vignette" />
 
-          {/* Mobile drawer toggle */}
-          {mobile && (
-            <button
-              onClick={() => setDrawerOpen(o => !o)}
-              style={{
-                position: 'absolute', bottom: 16, right: 16,
-                background: 'rgba(8,12,20,0.9)',
-                color: COLORS.CYAN,
-                border: `1px solid rgba(52,227,255,0.4)`,
-                borderRadius: '3px', padding: '8px 14px',
-                fontFamily: "'Orbitron', sans-serif",
-                fontSize: '9px', fontWeight: 700, letterSpacing: '0.12em',
-                cursor: 'pointer', zIndex: 10,
-                boxShadow: `0 0 14px rgba(52,227,255,0.2)`,
-              }}
-            >
-              {drawerOpen ? '[ CLOSE HUD ]' : '[ OPEN HUD ]'}
-            </button>
-          )}
-        </div>
+              <button
+                className={`help-btn ${showLegend ? 'on' : ''}`}
+                onClick={() => setShowLegend(v => !v)}
+                title="Show the colour key and map controls"
+              >
+                {showLegend ? 'Hide key' : 'Key'}
+              </button>
+              {showLegend && (
+                <div className="legend">
+                  <h4>Key</h4>
+                  <div className="legend-row"><span className="legend-line" style={{ borderTop: `3px solid ${COLORS.CYAN}` }} /> Chosen route</div>
+                  <div className="legend-row"><span className="legend-line" style={{ borderTop: `2px solid ${COLORS.STEEL}` }} /> Open link</div>
+                  <div className="legend-row"><span className="legend-line" style={{ borderTop: `2px dashed ${COLORS.MAGENTA}` }} /> Broken link</div>
+                  <div className="legend-row"><span className="legend-swatch" style={{ background: COLORS.CYAN }} /> Working planet</div>
+                  <div className="legend-row"><span className="legend-swatch" style={{ background: '#FBF5E6' }} /> Dead planet</div>
+                  <div style={{ height: 1, background: 'rgba(43,39,34,0.2)', margin: '8px 0' }} />
+                  <div className="legend-row">Scroll to zoom, drag to pan</div>
+                  <div className="legend-row">Break mode: click a planet or link</div>
+                </div>
+              )}
 
-        {/* Desktop side panels */}
-        {!mobile && (
-          <div style={{
-            width: `${PANEL_W}px`, minWidth: `${PANEL_W}px`,
-            display: 'flex', flexDirection: 'column',
-            gap: '5px', padding: '6px 6px 6px 0',
-            overflowY: 'auto',
-            borderLeft: `1px solid rgba(52,227,255,0.08)`,
-          }}>
-            {panels}
+              {connection === 'online' && snapshot && (killMode || !route) && (
+                <div className="hint-pill" style={killMode ? { borderColor: COLORS.MAGENTA, color: COLORS.MAGENTA } : undefined}>
+                  {killMode
+                    ? 'Break mode on — click a planet or link to break it'
+                    : 'Pick a start and an end, then press Send'}
+                </div>
+              )}
+
+              {connection === 'connecting' && (
+                <div className="overlay">
+                  <div className="spinner" />
+                  <div className="overlay-title">Connecting</div>
+                  <div className="overlay-msg">Reaching the routing engine...</div>
+                </div>
+              )}
+
+              {connection === 'error' && (
+                <div className="overlay">
+                  <div className="overlay-title err">Could not load the map</div>
+                  <div className="overlay-msg">{loadError ?? 'Something went wrong loading the universe.'}</div>
+                  <button className="btn-hud err" onClick={boot}>Try again</button>
+                </div>
+              )}
+            </div>
+
+            {mobile && (
+              <button
+                onClick={() => setDrawerOpen(o => !o)}
+                style={{
+                  position: 'absolute', bottom: 16, right: 16, zIndex: 25,
+                  background: '#FBF5E6', color: INK.LINE, border: `2px solid ${INK.LINE}`,
+                  borderRadius: '10px 8px 11px 8px', padding: '8px 14px',
+                  fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '2px 2px 0 rgba(43,39,34,0.2)',
+                }}
+              >
+                {drawerOpen ? 'Close details' : 'Details'}
+              </button>
+            )}
           </div>
+        )}
+
+        {/* Reopen tab when the panel is collapsed */}
+        {!mobile && panelMode === 'collapsed' && (
+          <button className="rail-btn" onClick={() => setPanelMode('normal')}
+            title="Show the details panel"
+            style={{ position: 'absolute', top: 10, right: 10, zIndex: 25 }}>
+            Show details
+          </button>
+        )}
+
+        {/* Details panel (collapsible / full-screen) */}
+        {railVisible && (
+          <aside style={{
+            display: 'flex', flexDirection: 'column',
+            width: fullMode ? '100%' : `${PANEL_W}px`,
+            minWidth: fullMode ? 0 : `${PANEL_W}px`,
+            flex: fullMode ? 1 : 'none',
+            borderLeft: fullMode ? 'none' : `2px solid ${INK.LINE}`,
+            background: COLORS.VOID_BLACK,
+          }}>
+            <div className="rail-header">
+              <span className="sketch-title" style={{ fontSize: '20px', color: INK.LINE, flex: 1 }}>
+                Details
+              </span>
+              <button className="rail-btn" onClick={() => setPanelMode(fullMode ? 'normal' : 'full')}
+                title={fullMode ? 'Back to split view' : 'Expand to full screen'}>
+                {fullMode ? 'Exit full screen' : 'Full screen'}
+              </button>
+              {!fullMode && (
+                <button className="rail-btn" onClick={() => setPanelMode('collapsed')} title="Hide the panel">
+                  Hide
+                </button>
+              )}
+            </div>
+            <div style={{
+              flex: 1, overflowY: 'auto', padding: '8px',
+              ...(fullMode
+                ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '8px', alignContent: 'start' }
+                : { display: 'flex', flexDirection: 'column', gap: '8px' }),
+            }}>
+              {panels}
+            </div>
+          </aside>
         )}
 
         {/* Mobile drawer */}
@@ -136,10 +263,8 @@ export default function App() {
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0,
             maxHeight: '65vh', overflowY: 'auto',
-            background: COLORS.PANEL_BLACK,
-            borderTop: `1px solid rgba(52,227,255,0.2)`,
-            zIndex: 20, display: 'flex', flexDirection: 'column',
-            gap: '5px', padding: '10px',
+            background: COLORS.VOID_BLACK, borderTop: `2px solid ${INK.LINE}`,
+            zIndex: 20, display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px',
           }}>
             {panels}
           </div>
