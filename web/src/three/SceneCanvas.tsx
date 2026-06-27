@@ -377,6 +377,8 @@ export function SceneCanvas() {
   const [view, setView] = useState({ x: 0, y: 0, w: W, h: H })
   const panning = useRef<{ cx: number; cy: number; vx: number; vy: number; scale: number } | null>(null)
   const dragged = useRef(false)
+  // Drives the closed-hand "grabbing" cursor while a pan is in progress.
+  const [grabbing, setGrabbing] = useState(false)
 
   // Which planet the cursor is over (highlights that planet's towers).
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -430,6 +432,7 @@ export function SceneCanvas() {
     const ctm = svgRef.current?.getScreenCTM()
     panning.current = { cx: e.clientX, cy: e.clientY, vx: view.x, vy: view.y, scale: ctm ? ctm.a : 1 }
     dragged.current = false
+    setGrabbing(true)
   }, [view.x, view.y])
 
   const onPointerMove = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
@@ -441,7 +444,7 @@ export function SceneCanvas() {
     setView(v => clampView({ ...v, x: p.vx - dx / s, y: p.vy - dy / s }))
   }, [clampView])
 
-  const endPan = useCallback(() => { panning.current = null }, [])
+  const endPan = useCallback(() => { panning.current = null; setGrabbing(false) }, [])
 
   // ── Empty state ────────────────────────────────────────────────────────────
   if (!snapshot) {
@@ -457,7 +460,10 @@ export function SceneCanvas() {
 
   // ─── SVG render ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div style={{
+      position: 'relative', width: '100%', height: '100%',
+      userSelect: 'none', WebkitUserSelect: 'none',
+    }}>
     <svg
       ref={svgRef}
       viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
@@ -469,7 +475,9 @@ export function SceneCanvas() {
       onPointerLeave={endPan}
       style={{
         width: '100%', height: '100%', display: 'block', background: 'transparent',
-        cursor: killMode ? 'crosshair' : 'grab', touchAction: 'none',
+        cursor: killMode ? 'crosshair' : grabbing ? 'grabbing' : 'grab',
+        touchAction: 'none',
+        userSelect: 'none', WebkitUserSelect: 'none',
       }}
     >
       <defs>
@@ -572,7 +580,7 @@ export function SceneCanvas() {
         return (
           <g key={`${edge.a}-${edge.b}`}
             onClick={() => handleLinkClick(edge.a, edge.b)}
-            style={{ cursor: killMode ? 'crosshair' : 'default' }}
+            style={{ cursor: killMode ? 'crosshair' : 'inherit' }}
           >
             {/* Route soft glow halo */}
             {isRoute && alive && (
@@ -617,7 +625,7 @@ export function SceneCanvas() {
             onClick={() => handlePlanetClick(node.id)}
             onPointerOver={() => setHoveredId(node.id)}
             onPointerOut={() => setHoveredId(h => (h === node.id ? null : h))}
-            style={{ cursor: killMode ? 'crosshair' : 'default' }}
+            style={{ cursor: killMode ? 'crosshair' : 'inherit' }}
           >
             {/* Outer atmosphere corona */}
             <circle cx={cx} cy={cy} r={ar + 16}
