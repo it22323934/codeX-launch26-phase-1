@@ -5,7 +5,6 @@ export function StatusBar() {
   const route         = useStore(s => s.route)
   const transmitError = useStore(s => s.transmitError)
 
-  // A network/engine failure outranks a route result in the readout.
   const state: 'idle' | 'ok' | 'dead' | 'fail' =
     transmitError ? 'fail'
     : !route ? 'idle'
@@ -80,7 +79,7 @@ export function StatusBar() {
 
       <div style={{ flex: 1 }} />
 
-      <span style={{ fontSize: '12px', color: COLORS.TEXT_DIM, flexShrink: 0 }}>
+      <span style={{ fontSize: '13px', color: COLORS.TEXT_DIM, flexShrink: 0 }}>
         Relic Ring &middot; v0.1
       </span>
     </div>

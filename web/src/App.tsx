@@ -108,10 +108,7 @@ export default function App() {
         <span className="sketch-title" style={{ fontSize: '24px', color: INK.LINE, lineHeight: 1 }}>
           Relic Ring Protocol
         </span>
-        <span style={{ fontSize: '13px', color: COLORS.TEXT_DIM }}>
-          plot a message hop-by-hop across the planets
-        </span>
-        <div style={{ flex: 1 }} />
+<div style={{ flex: 1 }} />
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: conn.c }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: conn.c, border: `1px solid ${INK.LINE}`, display: 'inline-block' }} />
           {conn.t}
@@ -131,6 +128,13 @@ export default function App() {
                 <SceneCanvas />
               </div>
               <div className="holo-vignette" />
+
+              {/* System name chip — top-left, mirroring the Key button */}
+              {snapshot?.system_name && (
+                <div className="system-name-chip">
+                  {snapshot.system_name}
+                </div>
+              )}
 
               <button
                 className={`help-btn ${showLegend ? 'on' : ''}`}

@@ -120,7 +120,7 @@ export function TelemetryPanel() {
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
               <span style={{
                 fontFamily: "'Orbitron', sans-serif",
-                fontSize: '16px', fontWeight: 700,
+                fontSize: '14px', fontWeight: 700,
                 letterSpacing: '0.04em', color: COLORS.TEXT_HI,
               }}>Total time</span>
               <div style={{ textAlign: 'right' }}>

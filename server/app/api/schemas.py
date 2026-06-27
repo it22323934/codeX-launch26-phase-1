@@ -136,5 +136,6 @@ class EdgeSnapshot(BaseModel):
 
 
 class UniverseSnapshot(BaseModel):
+    system_name: str = ''
     nodes: list[NodeSnapshot]
     edges: list[EdgeSnapshot]

@@ -729,8 +729,8 @@ export function SceneCanvas() {
               )
             })}
 
-            {/* Planet name */}
-            <text x={cx} y={cy - ar - 7}
+            {/* Planet name — raised so T1 tower label has clearance */}
+            <text x={cx} y={cy - ar - 20}
               textAnchor="middle"
               fontFamily="'Orbitron', sans-serif"
               fontSize="14" fontWeight="700" letterSpacing="1.5"
@@ -740,7 +740,7 @@ export function SceneCanvas() {
               {node.id.toUpperCase()}
             </text>
             {/* Codex label */}
-            <text x={cx} y={cy - ar - 20}
+            <text x={cx} y={cy - ar - 35}
               textAnchor="middle"
               fontFamily="'JetBrains Mono', monospace"
               fontSize="10" letterSpacing="0.04em"
