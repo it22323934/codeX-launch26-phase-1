@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from engine.constants import Constants
-from engine.geometry import closest_tower_pair, void_distance_km, fiber_arc_length_km
+from engine.geometry import closest_tower_pair, void_distance_km, fiber_arc_length_km, tower_segment_count
 
 if TYPE_CHECKING:
     from engine.universe import Universe
@@ -80,20 +80,23 @@ def compute_path_latency(path: list[str], universe: "Universe", constants: Const
             send_tower, _ = closest_tower_pair(node, next_node, scale)
 
         # --- Tower count at this planet ---
+        # Official spec (Equations §3): m = s+1 where s = ring segments traveled.
+        # m = 1 when entry tower = exit tower (dedup case, s=0).
         if is_origin:
-            towers_hit = 1  # send only
+            towers_hit = 1  # send tower only, no traversal (s=0, m=1)
         elif is_dest:
-            towers_hit = 1  # recv only
+            towers_hit = 1  # recv tower only, no traversal (s=0, m=1)
         else:
-            # relay: recv + send, deduplicated
-            towers_hit = 1 if recv_tower == send_tower else 2
+            # relay: traverse s segments from recv to send tower; hit s+1 distinct towers
+            s = tower_segment_count(nodes[planet_id], recv_tower, send_tower)  # type: ignore[arg-type]
+            towers_hit = 1 if s == 0 else s + 1
 
         tower_delay = constants.tower_delay_ms * towers_hit
         tower_total += tower_delay
 
-        # --- Fiber (relay only, when recv != send tower) ---
+        # --- Fiber (relay only, when recv != send tower, i.e. s > 0) ---
         fiber_entry: dict | None = None
-        if role == "relay" and recv_tower != send_tower:
+        if role == "relay" and towers_hit > 1:
             arc_km = fiber_arc_length_km(node, recv_tower, send_tower)  # type: ignore[arg-type]
             fiber_ms = arc_km / (constants.fiber_speed_fraction * constants.speed_of_light_kms) * 1000.0
             fiber_total += fiber_ms
