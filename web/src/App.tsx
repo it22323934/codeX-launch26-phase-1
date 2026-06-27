@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useStore } from './store'
 import { loadUniverse, connectWS } from './api'
 import { COLORS, INK } from './constants/visual'
@@ -92,8 +92,24 @@ export default function App() {
     : wsConnected                 ? { c: COLORS.CYAN,    t: 'Connected' }
     :                               { c: '#B07A1E',      t: 'Reconnecting' }
 
-  const fullMode      = !mobile && panelMode === 'full'
-  const railVisible   = !mobile && panelMode !== 'collapsed'
+  const fullMode    = !mobile && panelMode === 'full'
+  const railVisible = !mobile && panelMode !== 'collapsed'
+
+  // Track transitions for enter/exit full-screen animation
+  const prevFullMode   = useRef(fullMode)
+  const [fsAnim, setFsAnim] = useState<'expand' | 'collapse' | null>(null)
+  useEffect(() => {
+    if (fullMode !== prevFullMode.current) {
+      setFsAnim(fullMode ? 'expand' : 'collapse')
+      const t = setTimeout(() => setFsAnim(null), 400)
+      prevFullMode.current = fullMode
+      return () => clearTimeout(t)
+    }
+  }, [fullMode])
+  const railClass = useMemo(
+    () => ['rail-panel', fsAnim ? `rail-panel-${fsAnim}` : ''].filter(Boolean).join(' '),
+    [fsAnim]
+  )
 
   const panels = (
     <>
@@ -225,7 +241,7 @@ export default function App() {
 
         {/* Details panel (collapsible / full-screen) */}
         {railVisible && (
-          <aside style={{
+          <aside className={railClass} style={{
             display: 'flex', flexDirection: 'column',
             width: fullMode ? '100%' : `${PANEL_W}px`,
             minWidth: fullMode ? 0 : `${PANEL_W}px`,

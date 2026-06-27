@@ -343,9 +343,12 @@
          HAND-DRAWN SKETCHBOOK THEME (overrides the neon rules above)
          ════════════════════════════════════════════════════════════════════ */
 
-      /* One handwriting font everywhere (beats the old inline font strings). */
-      *, *::before, *::after { font-family: 'Kalam', 'Patrick Hand', cursive !important; }
+      /* One handwriting font everywhere — NO !important so inline fontFamily
+         values (JetBrains Mono for code/numbers) can override this. */
+      *, *::before, *::after { font-family: 'Kalam', 'Patrick Hand', cursive; }
       .sketch-title { font-family: 'Caveat', cursive !important; font-weight: 700; }
+      /* Explicit monospace override for code/data elements */
+      .font-mono { font-family: 'JetBrains Mono', 'Courier New', monospace !important; }
 
       /* Warm graph-paper background. */
       body {
@@ -390,8 +393,8 @@
       }
       .panel-header-badge { font-size: 13px !important; color: #7B7059 !important; letter-spacing: 0 !important; }
 
-      /* Drop the neon hologram overlays; keep a soft paper vignette + gentle tilt. */
-      .holo-stage { background: transparent !important; }
+      /* Map canvas: deep space black so planets pop against the dark sky. */
+      .holo-stage { background: #08080F !important; }
       .holo-projector, .holo-scanlines, .holo-flicker { display: none !important; }
       .holo-vignette { box-shadow: inset 0 0 120px 34px rgba(120,108,80,0.20) !important; }
 
@@ -453,6 +456,19 @@
       ::-webkit-scrollbar-thumb { background: rgba(43,39,34,0.32) !important; }
       ::-webkit-scrollbar-thumb:hover { background: rgba(43,39,34,0.6) !important; }
       select option { background: #FBF5E6 !important; color: #2B2722 !important; }
+
+      /* Full-screen panel transition */
+      .rail-panel { transition: width 0.38s cubic-bezier(0.22,1,0.36,1), min-width 0.38s cubic-bezier(0.22,1,0.36,1); }
+      @keyframes rail-expand-anim {
+        from { opacity: 0.6; transform: scale(0.97) translateX(12px); }
+        to   { opacity: 1;   transform: scale(1) translateX(0); }
+      }
+      @keyframes rail-collapse-anim {
+        from { opacity: 0.7; transform: scale(0.98) translateX(-8px); }
+        to   { opacity: 1;   transform: scale(1) translateX(0); }
+      }
+      .rail-panel-expand   { animation: rail-expand-anim   0.38s cubic-bezier(0.22,1,0.36,1) both; }
+      .rail-panel-collapse { animation: rail-collapse-anim 0.32s cubic-bezier(0.22,1,0.36,1) both; }
 
       /* Info-panel rail header + its expand / full-screen controls. */
       .rail-header {

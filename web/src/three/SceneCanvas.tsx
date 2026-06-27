@@ -46,7 +46,20 @@ function planetColor(codex: number): string {
   return planetColorPair(codex)[0]
 }
 
-// (Starfield removed for the paper theme — the page background is graph paper.)
+// ─── Star field ───────────────────────────────────────────────────────────────
+function lcg(s: number): number {
+  return ((s * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff
+}
+const STARS = Array.from({ length: 130 }, (_, i) => ({
+  x:       lcg(i * 3 + 1) * W,
+  y:       lcg(i * 3 + 2) * H,
+  r:       0.35 + lcg(i * 3 + 3) * 1.3,
+  op:      0.18 + lcg(i * 7 + 1) * 0.72,
+  twinkle: i % 6 === 0,
+  dur:     `${1.6 + lcg(i * 5) * 3.2}s`,
+  // A few "bright" stars get a larger diffuse ring
+  bright:  i % 22 === 0,
+}))
 
 // ─── Visual helpers ───────────────────────────────────────────────────────────
 function planetPx(radius_km: number): number {
@@ -148,6 +161,9 @@ export function SceneCanvas() {
 
   // ── SVG root ref (for scoped querySelector on tower glow elements) ───────────
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // ── Hovered planet (for tower highlight) ──────────────────────────────────
+  const [hoveredPlanet, setHoveredPlanet] = useState<string | null>(null)
 
   // ── Coordinate normaliser ──────────────────────────────────────────────────
   const toSVG = useMemo(() => make2DNorm(snapshot?.nodes ?? []), [snapshot])
@@ -513,10 +529,36 @@ export function SceneCanvas() {
         <pattern id="hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="7" stroke={COLORS.MAGENTA} strokeWidth="0.75" opacity="0.35" />
         </pattern>
+
+        {/* Text dark-halo filter so planet names read cleanly on dark bg */}
+        <filter id="text-halo" x="-20%" y="-40%" width="140%" height="180%">
+          <feMorphology in="SourceAlpha" operator="dilate" radius="2.5" result="expanded"/>
+          <feFlood floodColor="#08080F" floodOpacity="1" result="color"/>
+          <feComposite in="color" in2="expanded" operator="in" result="halo"/>
+          <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
       </defs>
 
-      {/* Graph paper comes from the page background. Everything drawn below is
-          wrapped in the displacement filter so it wobbles like pen on paper. */}
+      {/* ── Deep-space background + stars ──────────────────────────────────── */}
+      <rect x="0" y="0" width={W} height={H} fill="#08080F" />
+      <g>
+        {STARS.map((s, i) => (
+          <g key={i}>
+            {s.bright && (
+              <circle cx={s.x} cy={s.y} r={s.r * 3.5}
+                fill="white" opacity={s.op * 0.12} />
+            )}
+            <circle cx={s.x} cy={s.y} r={s.r}
+              fill={s.bright ? '#FFF8E8' : 'white'}
+              opacity={s.op}
+              className={s.twinkle ? 'star-twinkle' : undefined}
+              style={s.twinkle ? { '--twinkle-dur': s.dur } as React.CSSProperties : undefined}
+            />
+          </g>
+        ))}
+      </g>
+
+      {/* Everything drawn below is wrapped in the hand-drawn displacement filter. */}
       <g filter="url(#sketch)">
 
       {/* ── Range rings (faint pencil compass) ────────────────────────────── */}
@@ -607,6 +649,8 @@ export function SceneCanvas() {
         return (
           <g key={node.id}
             onClick={() => handlePlanetClick(node.id)}
+            onMouseEnter={() => setHoveredPlanet(node.id)}
+            onMouseLeave={() => setHoveredPlanet(null)}
             style={{ cursor: killMode ? 'crosshair' : 'default' }}
           >
             {/* Outer atmosphere corona */}
@@ -684,26 +728,32 @@ export function SceneCanvas() {
                     data-relic-planet={node.id}
                     data-relic-tower={k}
                     cx={tx} cy={ty} r={10}
-                    fill={color} opacity={0}
+                    fill={COLORS.MAGENTA} opacity={0}
                     filter="url(#glow)"
                   />
-                  {/* Tower dot sitting on equator */}
-                  <circle
-                    cx={tx} cy={ty}
-                    r={isActive ? 3.5 : 2.2}
-                    fill={isActive ? color : (alive ? `${color}28` : `${COLORS.STEEL}40`)}
-                    stroke={isActive ? color : (alive ? `${color}80` : COLORS.STEEL)}
-                    strokeWidth={0.7}
-                    opacity={alive ? (isActive ? 1 : 0.72) : 0.2}
-                    filter={isActive ? 'url(#glow-sm)' : undefined}
-                  />
+                  {/* Tower dot sitting on equator — red ink; grows on planet hover */}
+                  {(() => {
+                    const hov = hoveredPlanet === node.id
+                    const r   = isActive ? 4 : (hov ? 4.5 : 2.2)
+                    const col = (isActive || hov) ? COLORS.MAGENTA : (alive ? `${COLORS.MAGENTA}50` : `${COLORS.STEEL}40`)
+                    const str = (isActive || hov) ? COLORS.MAGENTA : (alive ? `${COLORS.MAGENTA}90` : COLORS.STEEL)
+                    return (
+                      <circle
+                        cx={tx} cy={ty} r={r}
+                        fill={col} stroke={str}
+                        strokeWidth={hov ? 1.2 : 0.7}
+                        opacity={alive ? ((isActive || hov) ? 1 : 0.55) : 0.2}
+                        filter={(isActive || hov) ? 'url(#glow-sm)' : undefined}
+                      />
+                    )
+                  })()}
                   {/* Label — decluttered: only when active or zoomed in */}
                   {(isActive || view.w < W * 0.55) && (
                     <text x={lx} y={ly}
                       textAnchor="middle" dominantBaseline="middle"
                       fontFamily="'JetBrains Mono', monospace"
                       fontSize="7.5"
-                      fill={isActive ? color : (alive ? `${color}99` : COLORS.STEEL)}
+                      fill={isActive ? COLORS.MAGENTA : (alive ? `${COLORS.MAGENTA}AA` : COLORS.STEEL)}
                       opacity={isActive ? 0.95 : 0.4}
                     >T{k + 1}</text>
                   )}
@@ -711,22 +761,22 @@ export function SceneCanvas() {
               )
             })}
 
-            {/* Planet name */}
+            {/* Planet name — white on dark bg, dark halo for legibility */}
             <text x={cx} y={cy - ar - 7}
               textAnchor="middle"
-              fontFamily="'Orbitron', sans-serif"
-              fontSize="12" fontWeight="700" letterSpacing="2"
-              fill={alive ? color : COLORS.TEXT_DIM}
-              filter={inRoute && alive ? 'url(#glow-xs)' : undefined}
+              style={{ fontFamily: "'Orbitron', sans-serif", fontSize: '12px', fontWeight: 700,
+                letterSpacing: '2px', fill: alive ? '#FFFFFF' : '#AAAAAA' }}
+              filter="url(#text-halo)"
             >
               {node.id.toUpperCase()}
             </text>
             {/* Codex label */}
             <text x={cx} y={cy - ar - 20}
               textAnchor="middle"
-              fontFamily="'JetBrains Mono', monospace"
-              fontSize="9" letterSpacing="0.04em"
-              fill={COLORS.TEXT_DIM} opacity="0.65"
+              style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '9px',
+                letterSpacing: '0.04em', fill: '#C0B8A8' }}
+              opacity="0.85"
+              filter="url(#text-halo)"
             >
               BASE-{node.codex}
             </text>

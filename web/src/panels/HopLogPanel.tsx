@@ -1,9 +1,9 @@
 import { useStore } from '../store'
-import { COLORS } from '../constants/visual'
+import { COLORS, INK } from '../constants/visual'
 
 const ROLE_COLOR: Record<string, string> = {
   origin:      COLORS.CYAN,
-  relay:       '#A78BFA',
+  relay:       INK.HIGHLIGHT,
   destination: COLORS.MAGENTA,
 }
 
@@ -54,7 +54,7 @@ export function HopLogPanel() {
                       fontSize: '6px', fontWeight: 700,
                       letterSpacing: '0.08em', color: COLORS.TEXT_DIM,
                       padding: '4px 8px', textAlign: 'left',
-                      borderBottom: `1px solid rgba(52,227,255,0.1)`,
+                      borderBottom: `1px solid rgba(43,39,34,0.14)`,
                       whiteSpace: 'nowrap',
                     }}>{h}</th>
                   ))}
@@ -70,8 +70,8 @@ export function HopLogPanel() {
                   const voidMs    = crossVoid?.void_ms   as number | null | undefined
                   return (
                     <tr key={i} style={{
-                      background: i % 2 === 0 ? 'transparent' : 'rgba(52,227,255,0.02)',
-                      borderBottom: `1px solid rgba(52,227,255,0.04)`,
+                      background: i % 2 === 0 ? 'transparent' : 'rgba(43,39,34,0.03)',
+                      borderBottom: `1px solid rgba(43,39,34,0.06)`,
                     }}>
                       <td style={{
                         fontFamily: "'JetBrains Mono', monospace",
@@ -96,7 +96,7 @@ export function HopLogPanel() {
                       ))}
                       <td style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '9px', color: '#A78BFA',
+                        fontSize: '9px', color: '#5E9B8C',
                         padding: '5px 8px', textAlign: 'right',
                       }}>
                         {fiberMs != null ? fiberMs.toFixed(3) : '-'}
