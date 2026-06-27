@@ -1,0 +1,193 @@
+### =========================================================
+### Python (server)
+### =========================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environments
+.env
+.env.*
+!.env.example
+.venv
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+__pypackages__/
+
+# Testing / coverage
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.cache
+nosetests.xml
+.hypothesis/
+
+# Type checkers / linters
+.mypy_cache/
+.pyre/
+.pytype/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# Django
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Flask
+instance/
+.webassets-cache
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Jupyter
+.ipynb_checkpoints
+profile_default/
+ipython_config.py
+
+# Poetry / PDM / pip
+poetry.lock
+Pipfile.lock
+.pdm.toml
+.pdm-python
+.pdm-build/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Misc Python
+*.manifest
+*.spec
+cython_debug/
+
+
+### =========================================================
+### Node / React (web)
+### =========================================================
+
+node_modules/
+.pnpm-store/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+*.log
+
+# Build outputs
+build/
+dist/
+out/
+.next/
+.nuxt/
+.vercel/
+.netlify/
+.firebase/
+storybook-static/
+
+# Caches
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.turbo/
+*.tsbuildinfo
+
+# Testing
+coverage/
+
+# Package manager artifacts
+.npm/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+
+### =========================================================
+### Environment variables (shared by both apps)
+### =========================================================
+
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+!.env.example
+
+
+### =========================================================
+### Editor / IDE
+### =========================================================
+
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.history/
+
+
+### =========================================================
+### OS-specific
+### =========================================================
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+
+### =========================================================
+### Misc
+### =========================================================
+
+*.bak
+*.tmp
+*.temp
+.docker/
+docker-compose.override.yml

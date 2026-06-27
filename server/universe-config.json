@@ -1,0 +1,61 @@
+{
+  "universe_metadata": {
+    "speed_of_light_kms": 300000,
+    "fiber_speed_fraction": 0.67,
+    "tower_delay_ms": 7,
+    "lmax_km": 50000000,
+    "coordinate_scale_unit_km": 100000
+  },
+  "nodes": [
+    {
+      "id": "Aurelia",
+      "codex": 5,
+      "x": 0,
+      "y": 0,
+      "radius_km": 400000,
+      "active_towers": 6,
+      "atmosphere_thickness_km": 60000,
+      "refraction_index": 1.10
+    },
+    {
+      "id": "Bisecta",
+      "codex": 14,
+      "x": 300,
+      "y": 0,
+      "radius_km": 400000,
+      "active_towers": 8,
+      "atmosphere_thickness_km": 60000,
+      "refraction_index": 1.25
+    },
+    {
+      "id": "Cindex",
+      "codex": 16,
+      "x": 600,
+      "y": 0,
+      "radius_km": 400000,
+      "active_towers": 4,
+      "atmosphere_thickness_km": 60000,
+      "refraction_index": 1.00
+    },
+    {
+      "id": "Doppler",
+      "codex": 8,
+      "x": 300,
+      "y": 300,
+      "radius_km": 400000,
+      "active_towers": 6,
+      "atmosphere_thickness_km": 60000,
+      "refraction_index": 1.33
+    },
+    {
+      "id": "Echo",
+      "codex": 2,
+      "x": 900,
+      "y": 0,
+      "radius_km": 400000,
+      "active_towers": 5,
+      "atmosphere_thickness_km": 60000,
+      "refraction_index": 1.40
+    }
+  ]
+}
