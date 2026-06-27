@@ -88,6 +88,35 @@ function SecondaryBtn({ onClick, color, active, title, children }: {
   )
 }
 
+function formatConfigError(error: any): string {
+  const raw = error?.message || String(error)
+
+  const missing: string[] = []
+
+  // if (raw.includes('max_void_hop_distance_km')) {
+  //   missing.push('Max void hop distance (km)')
+  // }
+
+  // if (raw.includes('coordinate_scale_unit_km')) {
+  //   missing.push('Coordinate scale unit (km)')
+  // }
+
+  // Clean structured output
+  if (missing.length > 0) {
+    return (
+      `Universe configuration incomplete.\n` +
+      `One or more required parameters are missing:\n\n` +
+      missing.map(m => `• ${m}`).join('\n')
+    )
+  }
+
+  if (raw.includes('422')) {
+    return 'Invalid universe configuration — missing required fields.'
+  }
+
+  return 'Couldn’t load universe configuration.'
+}
+
 export function Toolbar() {
   const {
     snapshot, originId, destinationId, payload, killMode,
@@ -139,7 +168,7 @@ export function Toolbar() {
         const cfg = JSON.parse(ev.target?.result as string)
         const res = await uploadConfig(cfg)
         if (res.ok) { setSnapshot(res.snapshot); setRoute(null) }
-        else setCfgError(res.error)
+        else setCfgError(formatConfigError(res.error))
       } catch {
         setCfgError('Not valid JSON — check the file contents.')
       } finally {
@@ -281,14 +310,32 @@ export function Toolbar() {
           >
             {loadingCfg ? 'Loading...' : 'Load a universe file...'}
           </button>
-          {cfgError && (
+          {/* {cfgError && (
             <div style={{
               marginTop: '5px',
               fontSize: '12px', color: COLORS.MAGENTA,
             }}>
               Couldn't load: {cfgError}
             </div>
-          )}
+          )} */}
+          {cfgError && (
+  <div style={{
+    marginTop: '8px',
+    padding: '8px 10px',
+    background: 'rgba(255,45,155,0.06)',
+    border: '1px solid rgba(255,45,155,0.25)',
+    borderRadius: '8px 6px 9px 6px',
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: '12px',
+    whiteSpace: 'pre-line',
+    color: COLORS.MAGENTA,
+    letterSpacing: '0.04em',
+    lineHeight: '1.4',
+  }}>
+    ⚠ Universe Config Error{"\n"}
+    {cfgError}
+  </div>
+)}
         </div>
       </div>
     </div>
